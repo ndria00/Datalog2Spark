@@ -1,0 +1,7 @@
+.vscode/*
+*.o
+ProASP/Compiler/output/*
+ProASP/SparkApplication/.classpath
+ProASP/SparkApplication/.gitignore
+ProASP/SparkApplication/.project
+ProASP/SparkApplication/.settings
