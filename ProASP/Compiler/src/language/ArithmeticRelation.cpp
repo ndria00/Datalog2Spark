@@ -172,7 +172,9 @@ unsigned aspc::ArithmeticRelation::firstOccurrenceOfVariableInLiteral(const stri
 string aspc::ArithmeticRelation::getStringRep() const {
     return left.getStringRep() + " " + comparisonType2String[comparisonType] + " " + right.getStringRep();
 }
-
+std::string aspc::ArithmeticRelation::getStringRepWithRemapping(std::unordered_map<std::string, std::string>& remap) const{
+    return left.getStringRepWithRemapping(remap) + " " + comparisonType2String[comparisonType] + " " + right.getStringRepWithRemapping(remap);
+}
 
 string invertOperation(char op) {
     switch(op) {

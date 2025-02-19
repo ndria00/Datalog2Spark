@@ -145,7 +145,7 @@ void SparkJobsCompiler::compileSCC(std::vector<int>& scc, int i){
             outfile << ind << predName << " = " << predName;
             for(unsigned  i = 0; i < declaredDeltas.size(); ++i){
                 std::string deltaName = declaredDeltas[i];
-                outfile << ".union(" << deltaName <<")";
+                outfile << ".union(" << deltaName <<").dropDuplicates()";
             }
             outfile << ";\n";
             declaredDeltas.clear();
@@ -202,6 +202,7 @@ void SparkJobsCompiler::compileRule(unsigned id, bool declareDelta){
     //assuming only one head
     aspc::Literal headLit(false, head[0]);
     std::unordered_set<std::string> headVars(headLit.getVariables().begin(), headLit.getVariables().end());
+    std::unordered_set<std::string> boundVars;
     Relation* leftRelation = nullptr;
     Relation* rightRelation = nullptr;
 
@@ -234,10 +235,55 @@ void SparkJobsCompiler::compileRule(unsigned id, bool declareDelta){
         std::string newRelationName;
         const aspc::Formula* formula = body[ruleOrder[i]];
         if(!formula->isLiteral()){
-           std::cout <<"Only literals are allowed in body\n";
-            exit(180);
+            assert(leftRelation != nullptr);
+            std::unordered_map<std::string, std::string> variableRemapping;
+            for(auto entry : leftRelation->variableToTerm){
+                variableRemapping.emplace(std::make_pair(entry.first, "term" + std::to_string(entry.second)));
+            }
+            const aspc::ArithmeticRelation* rel = (const aspc::ArithmeticRelation*) formula;
+            std::unordered_set<std::string> relationVars;
+            rel->addOccurringVariables(relationVars);
+            //cast all columns involved in comparison to int
+            if(rel->getComparisonType() == aspc::EQ){
+                for(std::string var : relationVars){
+                    outfile << ind << leftRelation->name << " = " << leftRelation->name << ".withColumn(\"term" << leftRelation->variableToTerm.at(var) << "\", col(\"term" << leftRelation->variableToTerm.at(var) << "\").cast(\"int\"));\n";
+                }
+            }
+            if(formula->isBoundedRelation(boundVars)){
+                //filter according to arithmetic
+                outfile << ind << leftRelation->name << " = " << leftRelation->name << ".filter(\"" << rel->getStringRepWithRemapping(variableRemapping) << "\");\n";
+            }else{
+                std::string boundedVar = rel->getAssignedVariable(boundVars);
+                //add new column according to value assignment
+                bool toKeepVar = false;
+                if(headLit.getVariables().count(boundedVar))
+                    toKeepVar = true;
+                std::unordered_set<std::string> toKeepVars; 
+                for(unsigned j = i+1; j < ruleOrder.size(); ++j){
+                    body[ruleOrder[j]]->addVariablesToSet(toKeepVars);
+                }
+                if(toKeepVars.count(boundedVar)){
+                    toKeepVar = true;
+                }
+                //compile add column
+                if(toKeepVar){
+                    //cast column to int
+                    for(std::string var : relationVars){
+                        outfile << ind << leftRelation->name << " = " << leftRelation->name << ".withColumn(\"term" << leftRelation->variableToTerm.at(var) << "\", col(\"term" << leftRelation->variableToTerm.at(var) << "\").cast(\"int\"));\n";
+                    }
+                    //add bound var as last column of the left relation
+                    int lastColumn = leftRelation->variableToTerm.size();
+                    leftRelation->variableToTerm.emplace(boundedVar, lastColumn);   
+                    variableRemapping.emplace(boundedVar, "term" + std::to_string(lastColumn));
+
+                }
+                boundVars.insert(boundedVar);
+            }
         }else{
             const aspc::Literal* lit = (const aspc::Literal*) formula;
+            for(std::string var : lit->getVariables()){
+                boundVars.insert(var);
+            }
             // zero arity predicates are all bound and are considered before all other predicates
             // a zero arity predicate p in the body is true if its corresponding flag exists_p is set to true
             if(lit->getAriety() == 0){
@@ -286,16 +332,11 @@ void SparkJobsCompiler::compileRule(unsigned id, bool declareDelta){
                 std::unordered_set<std::string> toKeepVars;
                 std::unordered_set<std::string> nextBodyVars;
                 //variables appearing in head have to be kept
-                for(std::string var : headVars){
-                    toKeepVars.insert(var);
-                }
+                headLit.addVariablesToSet(toKeepVars);
                 //variables needed by next joins have to be kept too
                 for(unsigned j = i+1; j < ruleOrder.size(); ++j){
-                    const aspc::Literal* nextLit = (const aspc::Literal*) body[ruleOrder[j]];
-                    for(std::string var : nextLit->getVariables()){
-                        toKeepVars.insert(var);
-                        nextBodyVars.insert(var);
-                    }
+                    body[ruleOrder[j]]->addVariablesToSet(toKeepVars);
+                    body[ruleOrder[j]]->addVariablesToSet(nextBodyVars);
                 }
 
                 //Give name to join (if there is rule id at the end of name trim it) - names are text_ruleId
@@ -423,7 +464,7 @@ void SparkJobsCompiler::compileRule(unsigned id, bool declareDelta){
                                 outfile << "lit(\"" << headLit.getTermAt(headTermIdx) << "\").as(\"term" << headTermIdx << "\")" << separatorIfNotLast(headTermIdx, headLit.getTerms().size()-1, ", ");
                         }
                     }
-                    outfile << "));\n";
+                    outfile << ")).dropDuplicates();\n";
                 }else{
                     //full zero arity body  -> head is true if the printed zero-arity if is satisfied
                     if(!printedZeroArityIf){
@@ -570,7 +611,6 @@ void SparkJobsCompiler::defineRuleOrdering(const aspc::Rule& rule){
                 if(body[i]-> isBoundedLiteral(boundVars)){
                     selectedBoundFormula = i;
                     selectedFormula = i;
-                    std::cout <<"Selected bound formula\n";
                     break;
                 }else if(body[i]->isLiteral() && !body[i]->isBoundedLiteral(boundVars)){
                     const aspc::Literal* literal = (const aspc::Literal*) body[i];
@@ -586,8 +626,16 @@ void SparkJobsCompiler::defineRuleOrdering(const aspc::Rule& rule){
                         }
                     }
                 }else{
-                    std::cout <<"No arithmetics allowed \n";
-                    exit(180);
+                    if(body[i]->isBoundedRelation(boundVars)){
+                        selectedBoundFormula = i;
+                        selectedFormula = i;
+                        break;
+                    }else if(body[i]->isBoundedValueAssignment(boundVars)){
+                        //prefer other formulas to bounded value assignment (these add columns to datasets)
+                        if(selectedFormula == body.size()){
+                            selectedFormula = i;
+                        }
+                    }
                 }
 
             }
@@ -603,10 +651,17 @@ void SparkJobsCompiler::defineRuleOrdering(const aspc::Rule& rule){
                 currentFormula = body[selectedFormula];
                 visitedFormulas[selectedFormula] = true;
                 ruleOrdering.at(rule.getRuleId()).push_back(selectedFormula);
-                const aspc::Literal* literal = (const aspc::Literal*) body[selectedFormula];
-                for(std::string var : literal->getVariables()){
-                    boundVars.insert(var);
-                }
+                if(body[selectedFormula]->isLiteral()){
+                    const aspc::Literal* literal = (const aspc::Literal*) body[selectedFormula];
+                    for(std::string var : literal->getVariables()){
+                        boundVars.insert(var);
+                    }
+                }else if(body[selectedFormula]->isBoundedValueAssignment(boundVars)){
+                    const aspc::ArithmeticRelation* relation = (const aspc::ArithmeticRelation*) body[selectedFormula];
+                    boundVars.insert(relation->getAssignedVariable(boundVars));
+
+                }else
+                    assert(false);
             }
         }else if(notVisited){
             std::cout << "Error ordering rule\n";

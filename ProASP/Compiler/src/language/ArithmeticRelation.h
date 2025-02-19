@@ -94,6 +94,7 @@ namespace aspc {
         }
 
         std::string getStringRep() const;
+        std::string getStringRepWithRemapping(std::unordered_map<std::string, std::string>&) const;
         
         std::string getAssignmentStringRep(const std::unordered_set<std::string>& boundVariables) const;
         

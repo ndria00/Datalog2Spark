@@ -34,6 +34,7 @@
 #include<string>
 #include<ostream>
 #include<unordered_set>
+#include<unordered_map>
 #include<string>
 #include<vector>
 
@@ -92,6 +93,7 @@ namespace aspc {
         std::vector<std::string> getAllTerms() const;
         
         std::string getStringRep() const;
+        std::string getStringRepWithRemapping(std::unordered_map<std::string, std::string>&) const;
         bool isProduct()const { return !singleTerm && operation == '*';}
 
     private:

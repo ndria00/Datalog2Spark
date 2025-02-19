@@ -105,3 +105,23 @@ std::string aspc::ArithmeticExpression::getStringRep() const {
     }
     return res;
 }
+
+std::string  aspc::ArithmeticExpression::getStringRepWithRemapping(std::unordered_map<std::string, std::string>& remap) const{
+    std::string res = "";
+    if(isInteger(term1)) {
+        res += term1;
+    }else if(isVariable(term1)){
+        res += remap.at(term1);
+    }
+    if(!singleTerm) {
+        res += " ";
+        res += operation;
+        res += " ";
+        if (isInteger(term2)) {
+            res += term2;
+        }else if(isVariable(term2)){
+            res += remap.at(term2);
+        }
+    }
+    return res;
+}
