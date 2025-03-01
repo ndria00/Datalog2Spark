@@ -87,21 +87,12 @@ std::vector<std::string> aspc::ArithmeticExpression::getAllTerms() const {
 
 std::string aspc::ArithmeticExpression::getStringRep() const {
     std::string res = "";
-    if (isInteger(term1) || isVariable(term1)) {
-        res += term1;
-    } else {
-        
-        res += "ConstantsManager::getInstance().mapConstant(\"" + escapeDoubleQuotes(term1) + "\")";
-    }
+    res += term1;
     if (!singleTerm) {
         res += " ";
         res += operation;
         res += " ";
-        if (isInteger(term2) || isVariable(term2)) {
-            res += term2;
-        } else {
-            res += "ConstantsManager::getInstance().mapConstant(\"" + escapeDoubleQuotes(term2) + "\")";
-        }
+        res += term2;
     }
     return res;
 }

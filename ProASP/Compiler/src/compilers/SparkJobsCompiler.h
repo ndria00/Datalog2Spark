@@ -1,6 +1,11 @@
+#ifndef SPARKJOBSCOMPILER_H
+#define SPARKJOBSCOMPILER_H
 #include "DependencyManager.h"
+#include "../language/TypeDirective.h"
 #include "../utils/Indentation.h"
 #include "../utils/SharedFunctions.h"
+#include <limits>
+#include "AggregateRewriter.h"
 #include <fstream>
 #include <vector>
 #include <unordered_map>
@@ -16,17 +21,24 @@ struct Relation{
 };
 
 class SparkJobsCompiler{
+    enum JoinType{INNER=0, ANTI, LEFT};
     DependencyManager dependencyManager;
     std::ofstream outfile;
     Indentation ind;
     aspc::Program program;
     std::unordered_map<unsigned, std::vector<unsigned>> ruleOrdering;
     std::unordered_set<std::string> loadedPredicates;
+    std::unordered_set<std::string> nonInterfacePredicates;
     std::unordered_map<int, std::unordered_set<std::string>> unpersistDatasetsAfterComponent;
     std::unordered_set<std::string> unpersistedPredicates;
     std::unordered_set<std::string> zeroArityPredicates;
     std::vector<std::string> declaredDeltas;
     std::unordered_set<std::string> headPredicates;
+    
+    static std::unordered_map<std::string, std::string> aggregateToFunction;
+    static std::unordered_map<std::string, std::string> aggregateToDefaultValue;
+    static std::string AGGREGATE_LIT_RESULT;
+    static std::unordered_map<JoinType, std::string> JoinTypeToSparkJoin;
     public:
         SparkJobsCompiler(const aspc::Program&);
         void compile();
@@ -41,6 +53,9 @@ class SparkJobsCompiler{
         void compileFilterConstantsAndPojectSameVariables(Relation*, const aspc::Literal*);
         std::string separatorIfNotLast(int , int, std::string);
         void closeMainFile();
-        void defineRuleOrdering(const aspc::Rule&);
+        void defineRuleOrdering(unsigned id);
         void printPredicateLoading(const aspc::Literal* lit);
+        std::unordered_set<std::string> computeExternalVariablesForAggregate(unsigned, unsigned);
+        std::unordered_map<std::string, std::string> printJoinBetweenRelations(Relation*, Relation*, std::string&, SparkJobsCompiler::JoinType, unsigned id, std::unordered_set<std::string>&, std::unordered_set<std::string>&, std::unordered_set<std::string>&);
 };
+#endif /*SPARKJOBSCOMPILER_H*/

@@ -40,7 +40,7 @@
 #include <list>
 #include <set>
 #include "Rule.h"
-
+#include "TypeDirective.h"
 
 namespace aspc {
 
@@ -52,6 +52,8 @@ namespace aspc {
         void newRule(){}
         void addRule(const aspc::Rule & r);
         void addFact(const aspc::Atom & f);
+        void addTypeDirective(const aspc::TypeDirective& d);
+        const aspc::TypeDirective* getTypeDirectiveByPredicateName(std::string predName);
         void addPredicate(const std::string& name, const unsigned ariety);
         void addAggregatePredicate(const std::string& name, const unsigned ariety);
         void addArithmeticRelationToRule(unsigned index,aspc::ArithmeticRelationWithAggregate r);
@@ -115,9 +117,11 @@ namespace aspc {
     private:
         std::vector<aspc::Rule> rules; //only rules are compiled
         std::vector<aspc::Atom> facts; //not compiled
+        std::vector<aspc::TypeDirective> typeDirectives;
         std::set< std::pair<std::string, unsigned> > predicates;
         std::set< std::pair<std::string, unsigned> > aggregatePredicates;
 
+        std::unordered_map<std::string, unsigned> predicateToDirective;
         std::unordered_map<std::string, std::vector<unsigned> > rulesForPredicate;
         std::map<RuleType, std::map<std::string, std::set<unsigned> > > rules_by_type;
         bool stratified;

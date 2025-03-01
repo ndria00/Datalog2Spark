@@ -41,7 +41,6 @@ class  ASPCore2CompileProgramListener : public ASPCore2BaseListener {
     std::unordered_set<std::string> negativeBodyVars;
     GraphWithTarjanAlgorithm dg;
     GraphWithTarjanAlgorithm pdg;
-
     std::unordered_map<std::string,unsigned> predicateId;
     std::vector<std::string> predicateNames;
     std::vector<std::string> freshvariables;
@@ -533,8 +532,22 @@ public:
   virtual void enterIdentifier(ASPCore2Parser::IdentifierContext * /*ctx*/) override { }
   virtual void exitIdentifier(ASPCore2Parser::IdentifierContext * /*ctx*/) override { }
 
-  virtual void enterDirective(ASPCore2Parser::DirectiveContext * /*ctx*/) override { }
-  virtual void exitDirective(ASPCore2Parser::DirectiveContext * /*ctx*/) override { }
+  virtual void enterDirective(ASPCore2Parser::DirectiveContext * /*ctx*/) override {
+  }
+  
+  virtual void exitDirective(ASPCore2Parser::DirectiveContext * /*ctx*/) override {
+    if(terminals.size() > 1){
+      std::string predicateName = terminals.front();
+      //shift
+      for(unsigned i = 0; i < terminals.size()-1; ++i){
+        terminals[i] = terminals[i+1];
+      }
+      terminals.pop_back();
+      aspc::TypeDirective directive(predicateName, terminals);
+      program.addTypeDirective(directive);
+    }
+    terminals.clear();
+  }
 
   virtual void enterQuery(ASPCore2Parser::QueryContext * /*ctx*/) override { }
   virtual void exitQuery(ASPCore2Parser::QueryContext * /*ctx*/) override { }

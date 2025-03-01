@@ -40,34 +40,34 @@ aspc::ArithmeticRelationWithAggregate::ArithmeticRelationWithAggregate(const asp
 }
 aspc::ArithmeticRelationWithAggregate::ArithmeticRelationWithAggregate(bool isLower, const aspc::ArithmeticExpression & expression, const aspc::Aggregate & aggregate_, aspc::ComparisonType compare,bool isNegated):aggregate(aggregate_.getAggregateLiterals(),aggregate_.getAggregateInequalities(),aggregate_.getAggregateVariables(),aggregate_.getAggregateFunction()),guard(expression),negated(isNegated){
     //guard = aspc::ArithmeticExpression(expression);
-
+    comparisonType = compare;
     plusOne=false;
-    if(isLower){
-        if(compare == aspc::GT)
-            comparisonType = aspc::LT;
-        else if(compare == aspc::GTE)
-            comparisonType = aspc::LTE;
-        else if(compare == aspc::LT)
-            comparisonType = aspc::GT;
-        else if(compare == aspc::LTE)
-            comparisonType = aspc::GTE;
-        else comparisonType = compare;
-    }else{
-        comparisonType = compare;
-    }
-    if(comparisonType == aspc::GT){
-        comparisonType = aspc::GTE;
-        plusOne=true;
-    }else if(comparisonType == aspc::LT){
-        std::cout << "Switching sign: it was " << (negated ? "" : " not ") << "negated and now it is " << (!negated ? "" : " not ") << "negated" << std::endl;
-        negated=!negated;
-        comparisonType = aspc::GTE;
-    }else if(comparisonType==aspc::LTE){
-        std::cout << "Switching sign: it was " << (negated ? "" : " not ") << "negated and now it is " << (!negated ? "" : " not ") << "negated" << std::endl;
-        negated=!negated;
-        comparisonType = aspc::GTE;
-        plusOne=true;
-    }
+    // if(isLower){
+    //     if(compare == aspc::GT)
+    //         comparisonType = aspc::LT;
+    //     else if(compare == aspc::GTE)
+    //         comparisonType = aspc::LTE;
+    //     else if(compare == aspc::LT)
+    //         comparisonType = aspc::GT;
+    //     else if(compare == aspc::LTE)
+    //         comparisonType = aspc::GTE;
+    //     else comparisonType = compare;
+    // }else{
+    //     comparisonType = compare;
+    // }
+    // if(comparisonType == aspc::GT){
+    //     comparisonType = aspc::GTE;
+    //     plusOne=true;
+    // }else if(comparisonType == aspc::LT){
+    //     std::cout << "Switching sign: it was " << (negated ? "" : " not ") << "negated and now it is " << (!negated ? "" : " not ") << "negated" << std::endl;
+    //     negated=!negated;
+    //     comparisonType = aspc::GTE;
+    // }else if(comparisonType==aspc::LTE){
+    //     std::cout << "Switching sign: it was " << (negated ? "" : " not ") << "negated and now it is " << (!negated ? "" : " not ") << "negated" << std::endl;
+    //     negated=!negated;
+    //     comparisonType = aspc::GTE;
+    //     plusOne=true;
+    // }
 
     /*for(const aspc::ArithmeticRelation& r : aggregate_.getAggregateNormalizedInequalities()){
         if(guard.getTerm1() == r.getLeft().getStringRep() && guard.getTerm1()[0]>='A'&& guard.getTerm1()[0]<='Z'){
@@ -143,6 +143,24 @@ std::string aspc::ArithmeticRelationWithAggregate::getAssignmentAsString(std::un
     }
     return "";
 }
+
+std::string aspc::ArithmeticRelationWithAggregate::getAssignmentAsStringForRelation(std::unordered_map<std::string, std::string>& variableRemapping, std::string aggregateResult, bool applyDefault, std::string defaultValue) const {
+    //assert(isBoundedValueAssignment(variableRemapping));
+    if(guard.isSingleTerm()){
+        if(isVariable(guard.getTerm1()) && variableRemapping.count(guard.getTerm1())==0)
+            return (!applyDefault ? variableRemapping[aggregateResult] : defaultValue); //result of aggr as it is
+    }else{
+        if(isVariable(guard.getTerm1()) && variableRemapping.count(guard.getTerm1())==0)
+            return (!applyDefault ? variableRemapping[aggregateResult] : defaultValue) + (guard.getOperation() == '+' ? " - " : " + ") + (isVariable(guard.getTerm2()) ? variableRemapping[guard.getTerm2()] : guard.getTerm2()); // result of aggr + seoncond term
+        else if(isVariable(guard.getTerm2()) && variableRemapping.count(guard.getTerm2())==0)
+            if(guard.getOperation() == '-')
+                return variableRemapping[guard.getTerm1()] + " - " + (!applyDefault ? variableRemapping[aggregateResult] : defaultValue); //first term - results of aggr
+            return (!applyDefault ? variableRemapping[aggregateResult] : defaultValue) + " + " + (isVariable(guard.getTerm1()) ?  variableRemapping[guard.getTerm1()] : guard.getTerm1()); //first term + results of aggr
+    }
+    return "";
+}
+
+
 bool aspc::ArithmeticRelationWithAggregate::isSafeAggSet() const {
     std::unordered_set<std::string> occuringVariables;
     addPositiveBodyVariablesToSet(occuringVariables);

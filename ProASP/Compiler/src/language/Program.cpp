@@ -53,6 +53,12 @@ aspc::Program::Program(const aspc::Program& p):facts(p.facts),predicates(p.predi
     for(auto pair: p.rules_by_type){
         rules_by_type[pair.first]=pair.second;
     }
+    for(auto d : p.typeDirectives){
+        addTypeDirective(d);
+    }
+    for(auto pair : p.predicateToDirective){
+        predicateToDirective[pair.first] = pair.second;
+    }
 }
 
 aspc::Program::~Program() {
@@ -73,6 +79,28 @@ void aspc::Program::addRule(const Rule & r) {
         rules_by_type[r.getType()][literal.getPredicateName()].insert(rules.size()-1);
     }
 
+}
+
+void aspc::Program::addTypeDirective(const aspc::TypeDirective& directive){
+    //take only one directive per predicate (the last overwrites the others)
+    if(predicateToDirective.count(directive.getPredicateName()) == 0){
+        typeDirectives.push_back(directive);
+        predicateToDirective.emplace(std::make_pair(directive.getPredicateName(), typeDirectives.size()-1));
+    }else{
+        for(unsigned i = 0; i < typeDirectives.size(); ++i){
+            if(typeDirectives[i].getPredicateName() == directive.getPredicateName()){
+                //overwrite
+                typeDirectives[i] = directive;
+                break;
+            }
+        }
+    }
+}
+const aspc::TypeDirective* aspc::Program::getTypeDirectiveByPredicateName(std::string predName){
+    if(predicateToDirective.count(predName) == 0){
+        return nullptr;
+    }
+    return &typeDirectives[predicateToDirective[predName]];
 }
 
 void aspc::Program::addFact(const aspc::Atom & r) {

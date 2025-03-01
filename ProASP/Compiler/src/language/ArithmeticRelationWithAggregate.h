@@ -34,7 +34,6 @@
 #include "ArithmeticExpression.h"
 #include "Aggregate.h"
 #include "ArithmeticRelation.h"
-
 namespace aspc {
     class ArithmeticRelationWithAggregate: public Formula{
         
@@ -73,6 +72,7 @@ namespace aspc {
             std::string getCompareTypeAsString()const{return aspc::ArithmeticRelation::comparisonType2String[comparisonType];}
             std::string getAssignedVariable(std::unordered_set<std::string> & set) const;
             std::string getAssignmentAsString(std::unordered_set<std::string> & set) const;
+            std::string getAssignmentAsStringForRelation(std::unordered_map<std::string, std::string> &, std::string, bool, std::string) const;
             bool isNegated()const{return negated;}
             bool isPlusOne() const {return plusOne;}
             void setPlusOne(bool isPlusOne){

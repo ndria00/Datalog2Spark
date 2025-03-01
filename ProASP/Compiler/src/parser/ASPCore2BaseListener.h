@@ -1,5 +1,5 @@
 
-// Generated from ASPCore2.g4 by ANTLR 4.12.0
+// Generated from ASPCore2.g4 by ANTLR 4.10
 
 #pragma once
 
@@ -144,6 +144,12 @@ public:
 
   virtual void enterDirective(ASPCore2Parser::DirectiveContext * /*ctx*/) override { }
   virtual void exitDirective(ASPCore2Parser::DirectiveContext * /*ctx*/) override { }
+
+  virtual void enterDirective_types(ASPCore2Parser::Directive_typesContext * /*ctx*/) override { }
+  virtual void exitDirective_types(ASPCore2Parser::Directive_typesContext * /*ctx*/) override { }
+
+  virtual void enterDirective_val(ASPCore2Parser::Directive_valContext * /*ctx*/) override { }
+  virtual void exitDirective_val(ASPCore2Parser::Directive_valContext * /*ctx*/) override { }
 
   virtual void enterQuery(ASPCore2Parser::QueryContext * /*ctx*/) override { }
   virtual void exitQuery(ASPCore2Parser::QueryContext * /*ctx*/) override { }

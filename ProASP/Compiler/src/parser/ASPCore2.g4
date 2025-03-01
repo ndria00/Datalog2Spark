@@ -151,8 +151,15 @@ identifier:					SYMBOLIC_CONSTANT
 						| STRING
 						| VARIABLE;
 						
-directive:					DIRECTIVE_NAME DIRECTIVE_VALUE;						
+directive:					DIRECTIVE_NAME SYMBOLIC_CONSTANT PARAM_OPEN directive_types PARAM_CLOSE DOT;						
 
+
+directive_types:		  		directive_val
+						| directive_val COMMA directive_types;
+
+directive_val:			   		DIRECTIVE_VALUE_INT
+						|  DIRECTIVE_VALUE_STRING;
+						
 query: 					atom QUERY_MARK;
 
 lower_guard_compare_aggregate:		term compareop;
@@ -361,12 +368,15 @@ aggregate_elements_heuristic: 		aggregate_element_heuristic
 NAF:						'not' ;
 
 
-
+DIRECTIVE_NAME:      				'#type' ;
+DIRECTIVE_VALUE_INT:				'int' ;
+DIRECTIVE_VALUE_STRING:			'string' ;
 
 SYMBOLIC_CONSTANT:   				[a-z][A-Za-z_0-9]* ;
 VARIABLE:           				[A-Z][A-Za-z_0-9]* ;
 STRING:					'"' ('\\"' | . )*? '"' ;
 NUMBER:					[0-9]+ ;
+
 
 WS:			 			[ \t\n]+ ->skip ;
 
@@ -408,8 +418,6 @@ AGGR_MAX:            				'#max' ;
 AGGR_MIN:            				'#min' ;
 AGGR_SUM:            				'#sum' ;
 ANNOTATION_GLOBAL_WASP_PROPAGATOR: 		'#propagator' ;
-DIRECTIVE_NAME:      				'#([A-Za-z_]*)' ;
-DIRECTIVE_VALUE:     				'.*' ;
 
 
 ANNOTATION_RULE_ALIGN_SUBSTITUTIONS:   	'%@rule_align_substitutions' ;
@@ -451,7 +459,6 @@ ANNOTATION_GLOBAL_WASP_HEURISTIC_ELEMENTS:	'@elements' ;
 
 EMPTY_COMMENT:					'%''\n' ->skip;
 COMMENT: 					'%'~('@' | '\n')(.)*?'\n' ->skip;
-
 
 
 

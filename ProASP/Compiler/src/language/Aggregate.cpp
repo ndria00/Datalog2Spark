@@ -247,6 +247,12 @@ void aspc::Aggregate::addVariablesToSet(std::unordered_set<std::string>& set) co
 
 }
 
+void aspc::Aggregate::addAggregateLiteralVariablesToSet(std::unordered_set<std::string>& set) const{
+    for(const aspc::Literal& lit : aggregateLiterals){
+        lit.addVariablesToSet(set);
+    }
+}
+
 bool aspc::Aggregate::isPositiveLiteral() const {
     return false;
 }

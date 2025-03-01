@@ -1,5 +1,5 @@
 
-// Generated from ASPCore2.g4 by ANTLR 4.12.0
+// Generated from ASPCore2.g4 by ANTLR 4.10
 
 #pragma once
 
@@ -12,29 +12,30 @@
 class  ASPCore2Parser : public antlr4::Parser {
 public:
   enum {
-    NAF = 1, SYMBOLIC_CONSTANT = 2, VARIABLE = 3, STRING = 4, NUMBER = 5, 
-    WS = 6, DOT = 7, DDOT = 8, COMMA = 9, HEAD_SEPARATOR = 10, SEMICOLON = 11, 
-    COLON = 12, AT = 13, CONS = 14, WCONS = 15, PLUS = 16, DASH = 17, TIMES = 18, 
-    SLASH = 19, BACK_SLASH = 20, PARAM_OPEN = 21, PARAM_CLOSE = 22, SQUARE_OPEN = 23, 
-    SQUARE_CLOSED = 24, CURLY_OPEN = 25, CURLY_CLOSE = 26, QUERY_MARK = 27, 
-    ANON_VAR = 28, EQUAL = 29, UNEQUAL = 30, LESS = 31, GREATER = 32, LESS_OR_EQ = 33, 
-    GREATER_OR_EQ = 34, AMPERSAND = 35, EXISTS = 36, AGGR_COUNT = 37, AGGR_MAX = 38, 
-    AGGR_MIN = 39, AGGR_SUM = 40, ANNOTATION_GLOBAL_WASP_PROPAGATOR = 41, 
-    DIRECTIVE_NAME = 42, DIRECTIVE_VALUE = 43, ANNOTATION_RULE_ALIGN_SUBSTITUTIONS = 44, 
-    ANNOTATION_RULE_LOOK_AHEAD = 45, ANNOTATION_RULE_PROJECTION = 46, ANNOTATION_RULE_REWRITING_ARITH = 47, 
-    ANNOTATION_RULE_ORDERING = 48, ANNOTATION_ORDERING_VALUE = 49, ANNOTATION_RULE_ATOM_INDEXED = 50, 
-    ANNOTATION_ATOM_INDEXED_ATOM = 51, ANNOTATION_ATOM_INDEXED_ARGUMENTS = 52, 
-    ANNOTATION_RULE_PARTIAL_ORDER = 53, ANNOTATION_PARTIAL_ORDER_BEFORE = 54, 
-    ANNOTATION_PARTIAL_ORDER_AFTER = 55, ANNOTATION_EXTATOM_PREDICATE = 56, 
-    ANNOTATION_EXTATOM_TYPE = 57, ANNOTATION_EXTATOM_TYPE_QCONST = 58, ANNOTATION_EXTATOM_TYPE_CONST = 59, 
-    ANNOTATION_EXTATOM_TYPE_U_INT = 60, ANNOTATION_EXTATOM_TYPE_UR_INT = 61, 
-    ANNOTATION_EXTATOM_TYPE_UT_INT = 62, ANNOTATION_EXTATOM_TYPE_R_INT = 63, 
-    ANNOTATION_EXTATOM_TYPE_T_INT = 64, ANNOTATION_GLOBAL_ORDERING = 65, 
-    ANNOTATION_GLOBAL_ATOM_INDEXED = 66, ANNOTATION_GLOBAL_PARTIAL_ORDER = 67, 
-    ANNOTATION_GLOBAL_EXTATOM_CONVERSION = 68, ANNOTATION_RULE_TO_DECOMPOSE = 69, 
-    ANNOTATION_RULE_TO_NOT_DECOMPOSE = 70, ANNOTATION_GLOBAL_WASP_HEURISTIC = 71, 
-    ANNOTATION_GLOBAL_WASP_HEURISTIC_FILE = 72, ANNOTATION_GLOBAL_WASP_HEURISTIC_ELEMENTS = 73, 
-    EMPTY_COMMENT = 74, COMMENT = 75
+    NAF = 1, DIRECTIVE_NAME = 2, DIRECTIVE_VALUE_INT = 3, DIRECTIVE_VALUE_STRING = 4, 
+    SYMBOLIC_CONSTANT = 5, VARIABLE = 6, STRING = 7, NUMBER = 8, WS = 9, 
+    DOT = 10, DDOT = 11, COMMA = 12, HEAD_SEPARATOR = 13, SEMICOLON = 14, 
+    COLON = 15, AT = 16, CONS = 17, WCONS = 18, PLUS = 19, DASH = 20, TIMES = 21, 
+    SLASH = 22, BACK_SLASH = 23, PARAM_OPEN = 24, PARAM_CLOSE = 25, SQUARE_OPEN = 26, 
+    SQUARE_CLOSED = 27, CURLY_OPEN = 28, CURLY_CLOSE = 29, QUERY_MARK = 30, 
+    ANON_VAR = 31, EQUAL = 32, UNEQUAL = 33, LESS = 34, GREATER = 35, LESS_OR_EQ = 36, 
+    GREATER_OR_EQ = 37, AMPERSAND = 38, EXISTS = 39, AGGR_COUNT = 40, AGGR_MAX = 41, 
+    AGGR_MIN = 42, AGGR_SUM = 43, ANNOTATION_GLOBAL_WASP_PROPAGATOR = 44, 
+    ANNOTATION_RULE_ALIGN_SUBSTITUTIONS = 45, ANNOTATION_RULE_LOOK_AHEAD = 46, 
+    ANNOTATION_RULE_PROJECTION = 47, ANNOTATION_RULE_REWRITING_ARITH = 48, 
+    ANNOTATION_RULE_ORDERING = 49, ANNOTATION_ORDERING_VALUE = 50, ANNOTATION_RULE_ATOM_INDEXED = 51, 
+    ANNOTATION_ATOM_INDEXED_ATOM = 52, ANNOTATION_ATOM_INDEXED_ARGUMENTS = 53, 
+    ANNOTATION_RULE_PARTIAL_ORDER = 54, ANNOTATION_PARTIAL_ORDER_BEFORE = 55, 
+    ANNOTATION_PARTIAL_ORDER_AFTER = 56, ANNOTATION_EXTATOM_PREDICATE = 57, 
+    ANNOTATION_EXTATOM_TYPE = 58, ANNOTATION_EXTATOM_TYPE_QCONST = 59, ANNOTATION_EXTATOM_TYPE_CONST = 60, 
+    ANNOTATION_EXTATOM_TYPE_U_INT = 61, ANNOTATION_EXTATOM_TYPE_UR_INT = 62, 
+    ANNOTATION_EXTATOM_TYPE_UT_INT = 63, ANNOTATION_EXTATOM_TYPE_R_INT = 64, 
+    ANNOTATION_EXTATOM_TYPE_T_INT = 65, ANNOTATION_GLOBAL_ORDERING = 66, 
+    ANNOTATION_GLOBAL_ATOM_INDEXED = 67, ANNOTATION_GLOBAL_PARTIAL_ORDER = 68, 
+    ANNOTATION_GLOBAL_EXTATOM_CONVERSION = 69, ANNOTATION_RULE_TO_DECOMPOSE = 70, 
+    ANNOTATION_RULE_TO_NOT_DECOMPOSE = 71, ANNOTATION_GLOBAL_WASP_HEURISTIC = 72, 
+    ANNOTATION_GLOBAL_WASP_HEURISTIC_FILE = 73, ANNOTATION_GLOBAL_WASP_HEURISTIC_ELEMENTS = 74, 
+    EMPTY_COMMENT = 75, COMMENT = 76
   };
 
   enum {
@@ -49,35 +50,36 @@ public:
     RuleArithop1 = 29, RuleArithop2 = 30, RuleTerm_ = 31, RuleTerm__ = 32, 
     RuleTerm = 33, RuleExpr = 34, RuleFactor = 35, RuleBasic_term = 36, 
     RuleGround_term = 37, RuleVariable_term = 38, RuleFunctional_term = 39, 
-    RuleVars = 40, RuleIdentifier = 41, RuleDirective = 42, RuleQuery = 43, 
-    RuleLower_guard_compare_aggregate = 44, RuleUpper_guard_compare_aggregate = 45, 
-    RuleCompare_aggregate = 46, RuleLower_guard_leftward_left_aggregate = 47, 
-    RuleLeftward_left_aggregate = 48, RuleLeft_aggregate = 49, RuleLower_guard_rightward_left_aggregate = 50, 
-    RuleRightward_left_aggregate = 51, RuleUpper_guard_leftward_right_aggregate = 52, 
-    RuleUpper_guard_rightward_right_aggregate = 53, RuleRight_aggregate = 54, 
-    RuleAggregate_atom = 55, RuleLeftwardop = 56, RuleRightwardop = 57, 
-    RuleAggregate = 58, RuleAggregate_elements = 59, RuleAggregate_element = 60, 
-    RuleAggregate_function = 61, RuleAnnotation_global = 62, RuleAnnotations_rule = 63, 
-    RuleAnnotation_rule = 64, RuleAnnotation_rule_to_decompose = 65, RuleAnnotation_rule_to_not_decompose = 66, 
-    RuleAnnotation_rule_ordering = 67, RuleAnnotation_global_ordering = 68, 
-    RuleAnnotation_global_extatom_conversion = 69, RuleAnnotation_extpredicate = 70, 
-    RuleExtatom_conv_types = 71, RuleExtatom_conv_type = 72, RuleRule_ordering_type = 73, 
-    RuleGlobal_ordering_type = 74, RuleAnnotation_rule_atom_indexed = 75, 
-    RuleAnnotation_global_atom_indexed = 76, RuleRule_indexing_arguments = 77, 
-    RuleRule_naf_literal_annotation = 78, RuleGlobal_indexing_arguments = 79, 
-    RuleGlobal_naf_literal_annotation = 80, RuleRule_atom_annotation_before = 81, 
-    RuleGlobal_atom_annotation_before = 82, RuleRule_atom_annotation_after = 83, 
-    RuleGlobal_atom_annotation_after = 84, RuleRule_atoms_annotation_before = 85, 
-    RuleGlobal_atoms_annotation_before = 86, RuleRule_atoms_annotation_after = 87, 
-    RuleGlobal_atoms_annotation_after = 88, RuleAnnotation_rule_partial_order_begin = 89, 
-    RuleAnnotation_global_partial_order_begin = 90, RuleAnnotation_rule_partial_order = 91, 
-    RuleAnnotation_global_partial_order = 92, RuleAnnotation_rule_projection = 93, 
-    RuleAnnotation_rule_projection_value = 94, RuleAnnotation_rule_rewriting_arith = 95, 
-    RuleAnnotation_rule_align_substitutions = 96, RuleAnnotation_rule_look_ahead = 97, 
-    RuleAnnotation_global_wasp_propagator = 98, RuleAnnotation_global_wasp_propagator_begin = 99, 
-    RuleAnnotation_global_wasp_heuristic = 100, RuleAnnotation_global_wasp_heuristic_begin = 101, 
-    RuleHeuristic_python_file = 102, RuleAggregate_element_heuristic = 103, 
-    RuleAggregate_elements_heuristic = 104
+    RuleVars = 40, RuleIdentifier = 41, RuleDirective = 42, RuleDirective_types = 43, 
+    RuleDirective_val = 44, RuleQuery = 45, RuleLower_guard_compare_aggregate = 46, 
+    RuleUpper_guard_compare_aggregate = 47, RuleCompare_aggregate = 48, 
+    RuleLower_guard_leftward_left_aggregate = 49, RuleLeftward_left_aggregate = 50, 
+    RuleLeft_aggregate = 51, RuleLower_guard_rightward_left_aggregate = 52, 
+    RuleRightward_left_aggregate = 53, RuleUpper_guard_leftward_right_aggregate = 54, 
+    RuleUpper_guard_rightward_right_aggregate = 55, RuleRight_aggregate = 56, 
+    RuleAggregate_atom = 57, RuleLeftwardop = 58, RuleRightwardop = 59, 
+    RuleAggregate = 60, RuleAggregate_elements = 61, RuleAggregate_element = 62, 
+    RuleAggregate_function = 63, RuleAnnotation_global = 64, RuleAnnotations_rule = 65, 
+    RuleAnnotation_rule = 66, RuleAnnotation_rule_to_decompose = 67, RuleAnnotation_rule_to_not_decompose = 68, 
+    RuleAnnotation_rule_ordering = 69, RuleAnnotation_global_ordering = 70, 
+    RuleAnnotation_global_extatom_conversion = 71, RuleAnnotation_extpredicate = 72, 
+    RuleExtatom_conv_types = 73, RuleExtatom_conv_type = 74, RuleRule_ordering_type = 75, 
+    RuleGlobal_ordering_type = 76, RuleAnnotation_rule_atom_indexed = 77, 
+    RuleAnnotation_global_atom_indexed = 78, RuleRule_indexing_arguments = 79, 
+    RuleRule_naf_literal_annotation = 80, RuleGlobal_indexing_arguments = 81, 
+    RuleGlobal_naf_literal_annotation = 82, RuleRule_atom_annotation_before = 83, 
+    RuleGlobal_atom_annotation_before = 84, RuleRule_atom_annotation_after = 85, 
+    RuleGlobal_atom_annotation_after = 86, RuleRule_atoms_annotation_before = 87, 
+    RuleGlobal_atoms_annotation_before = 88, RuleRule_atoms_annotation_after = 89, 
+    RuleGlobal_atoms_annotation_after = 90, RuleAnnotation_rule_partial_order_begin = 91, 
+    RuleAnnotation_global_partial_order_begin = 92, RuleAnnotation_rule_partial_order = 93, 
+    RuleAnnotation_global_partial_order = 94, RuleAnnotation_rule_projection = 95, 
+    RuleAnnotation_rule_projection_value = 96, RuleAnnotation_rule_rewriting_arith = 97, 
+    RuleAnnotation_rule_align_substitutions = 98, RuleAnnotation_rule_look_ahead = 99, 
+    RuleAnnotation_global_wasp_propagator = 100, RuleAnnotation_global_wasp_propagator_begin = 101, 
+    RuleAnnotation_global_wasp_heuristic = 102, RuleAnnotation_global_wasp_heuristic_begin = 103, 
+    RuleHeuristic_python_file = 104, RuleAggregate_element_heuristic = 105, 
+    RuleAggregate_elements_heuristic = 106
   };
 
   explicit ASPCore2Parser(antlr4::TokenStream *input);
@@ -140,6 +142,8 @@ public:
   class VarsContext;
   class IdentifierContext;
   class DirectiveContext;
+  class Directive_typesContext;
+  class Directive_valContext;
   class QueryContext;
   class Lower_guard_compare_aggregateContext;
   class Upper_guard_compare_aggregateContext;
@@ -851,7 +855,11 @@ public:
     DirectiveContext(antlr4::ParserRuleContext *parent, size_t invokingState);
     virtual size_t getRuleIndex() const override;
     antlr4::tree::TerminalNode *DIRECTIVE_NAME();
-    antlr4::tree::TerminalNode *DIRECTIVE_VALUE();
+    antlr4::tree::TerminalNode *SYMBOLIC_CONSTANT();
+    antlr4::tree::TerminalNode *PARAM_OPEN();
+    Directive_typesContext *directive_types();
+    antlr4::tree::TerminalNode *PARAM_CLOSE();
+    antlr4::tree::TerminalNode *DOT();
 
     virtual void enterRule(antlr4::tree::ParseTreeListener *listener) override;
     virtual void exitRule(antlr4::tree::ParseTreeListener *listener) override;
@@ -859,6 +867,35 @@ public:
   };
 
   DirectiveContext* directive();
+
+  class  Directive_typesContext : public antlr4::ParserRuleContext {
+  public:
+    Directive_typesContext(antlr4::ParserRuleContext *parent, size_t invokingState);
+    virtual size_t getRuleIndex() const override;
+    Directive_valContext *directive_val();
+    antlr4::tree::TerminalNode *COMMA();
+    Directive_typesContext *directive_types();
+
+    virtual void enterRule(antlr4::tree::ParseTreeListener *listener) override;
+    virtual void exitRule(antlr4::tree::ParseTreeListener *listener) override;
+   
+  };
+
+  Directive_typesContext* directive_types();
+
+  class  Directive_valContext : public antlr4::ParserRuleContext {
+  public:
+    Directive_valContext(antlr4::ParserRuleContext *parent, size_t invokingState);
+    virtual size_t getRuleIndex() const override;
+    antlr4::tree::TerminalNode *DIRECTIVE_VALUE_INT();
+    antlr4::tree::TerminalNode *DIRECTIVE_VALUE_STRING();
+
+    virtual void enterRule(antlr4::tree::ParseTreeListener *listener) override;
+    virtual void exitRule(antlr4::tree::ParseTreeListener *listener) override;
+   
+  };
+
+  Directive_valContext* directive_val();
 
   class  QueryContext : public antlr4::ParserRuleContext {
   public:
