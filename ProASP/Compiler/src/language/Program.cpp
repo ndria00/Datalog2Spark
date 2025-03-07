@@ -57,7 +57,7 @@ aspc::Program::Program(const aspc::Program& p):facts(p.facts),predicates(p.predi
         addTypeDirective(d);
     }
     for(auto pair : p.predicateToDirective){
-        predicateToDirective[pair.first] = pair.second;
+        predicateToDirective.emplace(std::make_pair(pair.first, pair.second));
     }
 }
 
@@ -168,6 +168,24 @@ void aspc::Program::addPredicate(const string& name, const unsigned ariety) {
 const set<pair<string, unsigned> >& aspc::Program::getPredicates() const {
     return predicates;
 }
+const std::set<std::pair<std::string, unsigned> > aspc::Program::getAllPredicatesAndArity() const {
+    std::set<std::pair<std::string, unsigned>> res;
+    for(const Rule & r:rules) {
+        for(const Atom & a: r.getHead()) {
+            res.insert(std::make_pair(a.getPredicateName(), a.getAriety()));
+        }
+       for(const Literal & l: r.getBodyLiterals()) {
+           res.insert(std::make_pair(l.getPredicateName(), l.getAriety()));
+       }
+       //added for aggregate
+       for(ArithmeticRelationWithAggregate aggr : r.getArithmeticRelationsWithAggregate()){
+           for(Literal l : aggr.getAggregate().getAggregateLiterals()){
+               res.insert(std::make_pair(l.getPredicateName(), l.getAriety()));
+           }
+       }
+    }
+    return res;
+}
 const std::set< std::pair<std::string, unsigned> >& aspc::Program::getAggregatePredicates() const{
     return aggregatePredicates;
 }
@@ -207,6 +225,15 @@ set<string> aspc::Program::getHeadPredicates() const {
     }
     return res;
 }
+std::set<std::pair<std::string, unsigned>> aspc::Program::getHeadPredicatesAndArity() const {
+    std::set<std::pair<std::string, unsigned>> res;
+    for(const Rule & r:rules) {
+        for(const Atom & a: r.getHead()) {
+            res.insert(std::make_pair(a.getPredicateName(), a.getAriety()));
+        }
+    }
+    return res;
+}
 bool aspc::Program::hasConstraintWithLiteral() const{
     for(const Rule & r: rules) {
         if(r.isConstraint() && r.containsLiteral()) {
@@ -233,4 +260,8 @@ bool aspc::Program::clear(){
     aggregatePredicates.clear();
     rules_by_type.clear();
 
+}
+
+const std::vector<aspc::TypeDirective>& aspc::Program::getDirectives()const{
+    return typeDirectives;
 }

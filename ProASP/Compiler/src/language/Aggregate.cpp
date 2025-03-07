@@ -33,7 +33,7 @@
 #include "../utils/SharedFunctions.h"
 
 
-std::map<std::string,aspc::AggregateFunction> string2AggregateFunction = {
+std::map<std::string,aspc::AggregateFunction> aspc::Aggregate::string2AggregateFunction = {
     {"#count", aspc::COUNT},
     {"#sum", aspc::SUM},
     {"#max", aspc::MAX},
@@ -41,7 +41,7 @@ std::map<std::string,aspc::AggregateFunction> string2AggregateFunction = {
 
 };
 
-std::map<aspc::AggregateFunction,std::string> aggregateFunction2String = {
+std::map<aspc::AggregateFunction,std::string> aspc::Aggregate::aggregateFunction2String = {
     {aspc::COUNT,"#count"},
     {aspc::SUM,"#sum"},
     {aspc::MAX,"#max"},

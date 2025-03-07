@@ -139,13 +139,24 @@ public:
   const std::vector<std::string>& getPredicateNames()const {return predicateNames;} 
   const std::unordered_map<std::string,unsigned>& getPredicateIds()const {return predicateId;} 
   
-  virtual void exitProgram(ASPCore2Parser::ProgramContext * /*ctx*/) override { 
+  virtual void exitProgram(ASPCore2Parser::ProgramContext * /*ctx*/) override {
     std::cout << "Program built"<<std::endl;
     program.setTight(checkTight());
     std::cout << "Tight: " << (program.isTight() ? "Yes" : "No") << std::endl;
     program.setStratified(checkStratified());
     std::cout << "Stratified: " << (program.isStratified() ? "Yes" : "No") << std::endl;
     program.print();
+    //check that declared directives match predicate arities
+    for(std::pair<std::string, int> predicate : program.getAllPredicatesAndArity()){
+      const aspc::TypeDirective* directive = program.getTypeDirectiveByPredicateName(predicate.first);
+      
+      if(directive != nullptr){
+        if(directive->getPredicateArity() != predicate.second){
+          std::cout << "type declarations do not match predicate arities. Think about refining / deleting them - consider that default type is string\n";
+          exit(180);
+        }
+      }
+    }
   }
 
   virtual void enterRule_(ASPCore2Parser::Rule_Context * /*ctx*/) override { }

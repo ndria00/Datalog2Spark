@@ -102,6 +102,8 @@ namespace aspc {
             }
         }
         SharedVars getSharedBody(const std::unordered_set<std::string>&, const std::vector<aspc::Literal>&, const std::vector<aspc::ArithmeticRelation>&)const;
+        static std::map<std::string,aspc::AggregateFunction> string2AggregateFunction;
+        static std::map<aspc::AggregateFunction,std::string> aggregateFunction2String;
     private:
         std::vector<aspc::Literal> aggregateLiterals;
         std::vector<aspc::ArithmeticRelation> inequalities;

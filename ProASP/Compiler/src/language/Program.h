@@ -59,6 +59,7 @@ namespace aspc {
         void addArithmeticRelationToRule(unsigned index,aspc::ArithmeticRelationWithAggregate r);
         void changeCompareTypeToRule(unsigned index,int aggrIndex,aspc::ComparisonType type);
         const std::set< std::pair<std::string, unsigned> >& getPredicates() const;
+        const std::set<std::pair<std::string, unsigned> > getAllPredicatesAndArity() const;
         const std::set< std::pair<std::string, unsigned> >& getAggregatePredicates() const;
         unsigned getRulesSize() const;
         const std::vector<aspc::Rule>& getRules() const;
@@ -73,6 +74,7 @@ namespace aspc {
         void print() const;
         std::set<std::string> getBodyPredicates() const;
         std::set<std::string> getHeadPredicates() const;
+        std::set<std::pair<std::string, unsigned>> getHeadPredicatesAndArity() const;
         bool hasConstraintWithLiteral()const;
         bool hasConstraint() const;
         bool clear();
@@ -114,6 +116,7 @@ namespace aspc {
             aspc::Rule* rule = &rules[ruleId];
             return rule->getHead()[0].getPredicateName() == predicate ? rule->rewriteHead(remapped_predicates) : -1;
         }
+        const std::vector<aspc::TypeDirective>& getDirectives()const;
     private:
         std::vector<aspc::Rule> rules; //only rules are compiled
         std::vector<aspc::Atom> facts; //not compiled

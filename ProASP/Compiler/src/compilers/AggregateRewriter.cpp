@@ -5,6 +5,10 @@ std::string AggregateRewriter::BODY_PREFIX = "Body";
 
 AggregateRewriter::AggregateRewriter(const aspc::Program& program) : program(program), nextAggId(0){
     rewriteAggregates();
+    //copy directives
+    for(const aspc::TypeDirective& d : program.getDirectives()){
+        rewrittenProgram.addTypeDirective(d);
+    }
 }
 
 void AggregateRewriter::rewriteAggregates(){

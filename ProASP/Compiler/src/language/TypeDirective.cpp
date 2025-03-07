@@ -1,12 +1,14 @@
 #include "TypeDirective.h"
-
 std::string aspc::TypeDirective::INT_TYPE = "int";
+std::string aspc::TypeDirective::FLOAT_TYPE = "float";
+std::string aspc::TypeDirective::NUMERIC_TYPE = "float";
 std::string aspc::TypeDirective::STRING_TYPE = "string";
+std::string aspc::TypeDirective::DEFAULT_TYPE = aspc::TypeDirective::STRING_TYPE;
 
 aspc::TypeDirective::TypeDirective(const std::string& predicateName, const std::vector<std::string>& terms) : predicateName(predicateName){
     for(unsigned i = 0; i < terms.size(); ++i){
-        if(terms[i] == aspc::TypeDirective::INT_TYPE)
-            this->termTypes.push_back(aspc::TypeDirective::INT_TYPE);
+        if(terms[i] == aspc::TypeDirective::INT_TYPE || terms[i] == aspc::TypeDirective::FLOAT_TYPE)
+            this->termTypes.push_back(aspc::TypeDirective::NUMERIC_TYPE);
         else if(terms[i] == aspc::TypeDirective::STRING_TYPE)
             this->termTypes.push_back(aspc::TypeDirective::STRING_TYPE);
         else

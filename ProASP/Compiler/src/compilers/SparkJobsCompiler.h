@@ -2,8 +2,10 @@
 #define SPARKJOBSCOMPILER_H
 #include "DependencyManager.h"
 #include "../language/TypeDirective.h"
+#include "../language/Aggregate.h"
 #include "../utils/Indentation.h"
 #include "../utils/SharedFunctions.h"
+#include "../utils/TypesManager.h"
 #include <limits>
 #include "AggregateRewriter.h"
 #include <fstream>
@@ -34,7 +36,11 @@ class SparkJobsCompiler{
     std::unordered_set<std::string> zeroArityPredicates;
     std::vector<std::string> declaredDeltas;
     std::unordered_set<std::string> headPredicates;
-    
+    void setInputTypes();
+    void inferTypes(int);
+    void abortDueToTypeMismatch(std::string);
+    void checkLiteralTerms(const aspc::Literal&, std::unordered_map<std::string, std::string>&);
+
     static std::unordered_map<std::string, std::string> aggregateToFunction;
     static std::unordered_map<std::string, std::string> aggregateToDefaultValue;
     static std::string AGGREGATE_LIT_RESULT;

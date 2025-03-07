@@ -4,14 +4,14 @@
 //term that appears in aggregate should be float(they can be inferred)
 //
 std::unordered_map<std::string,std::string> SparkJobsCompiler::aggregateToFunction = {
-    {"#count", "count"}, //count all -> int
-    {"#sum", "sum"},     // float -> float
-    {"#max", "max"},     // float -> float
-    {"#min", "min"},     //float -> float
-    {"#avg", "avg"},     //always float
-    {"#median", ""},     //always float
-    {"#stddev", ""},     //always float
-    {"#var", ""}         //always float
+    {"#count", "count"},
+    {"#sum", "sum"},
+    {"#max", "max"},
+    {"#min", "min"},
+    {"#avg", "avg"},
+    {"#stddev", "stddev"},
+    {"#var", "variance"},
+    {"#median", "median"},
 };
 
 //TODO check default values
@@ -21,9 +21,9 @@ std::unordered_map<std::string,std::string> SparkJobsCompiler::aggregateToDefaul
     {"#max", std::to_string(std::numeric_limits<float>::min())},
     {"#min", std::to_string(std::numeric_limits<float>::max())},
     {"#avg", "0"},
-    {"#median", "0"},
     {"#stddev", "0"},
-    {"#var", "0"}
+    {"#var", "0"},
+    {"#median", "0"},
 };
 
 std::unordered_map<SparkJobsCompiler::JoinType, std::string> SparkJobsCompiler::JoinTypeToSparkJoin = {
@@ -44,10 +44,15 @@ void SparkJobsCompiler::compile(){
         std::cout << "Spark compilation only works for stratified programs\n";
         exit(180);
     }
+    setInputTypes();
+    TypesManager::getInstance().printPredicateTypes();
     openMainFile();
     importAndOpenMainMethod();
     compileProgram();
     closeMainFile();
+    std::cout <<"Final types\n";
+    std::cout <<"------------------------------------------------------------\n";
+    TypesManager::getInstance().printPredicateTypes();
 }
 
 
@@ -77,11 +82,8 @@ void SparkJobsCompiler::compileCheckFileExists(){
 std::string SparkJobsCompiler::compileEmptyDatasetWithLitTerms(const aspc::Literal* lit){
     std::string output = "";
     output = "session.createDataFrame(Collections.emptyList(), new StructType()";
-    const aspc::TypeDirective* directive = program.getTypeDirectiveByPredicateName(lit->getPredicateName());
     for(unsigned i = 0; i< lit->getTerms().size(); ++i){
-        std::string termType = aspc::TypeDirective::INT_TYPE;
-        if(directive != nullptr)
-            termType = directive->getTermTypeFromPos(i);
+        std::string termType = TypesManager::getInstance().getTypeForPredicateTerm(lit->getPredicateName(), i);
         output = output + ".add(\"term" + std::to_string(i) + "\", \"" + termType + "\")";
     }
     output = output + ")";
@@ -153,7 +155,150 @@ void SparkJobsCompiler::compileProgram(){
     }
 }
 
-void SparkJobsCompiler::compileSCC(std::vector<int>& scc, int i){
+void SparkJobsCompiler::inferTypes(int ruleId){
+    //map variable of literals / built-in to types
+    std::unordered_map<std::string, std::string> variableToType;
+
+    const aspc::Rule& rule = program.getRule(ruleId);
+    auto body = rule.getFormulas();
+    auto head = rule.getHead();
+    //assuming only one head
+    aspc::Literal headLit(false, head[0]);
+
+    std::vector<unsigned> ruleOrder = ruleOrdering.at(ruleId);
+    for(unsigned i = 0; i < ruleOrder.size(); ++i){
+        const aspc::Formula* formula = body[ruleOrder[i]];
+        std::cout <<"Formula: ";
+        formula->print();
+        std::cout <<"\n";
+        if(!formula->isLiteral()){
+            if(formula->containsAggregate()){
+                const aspc::ArithmeticRelationWithAggregate* aggrRel = (const aspc::ArithmeticRelationWithAggregate*) formula;
+                //aggregate are normalized
+                //check aggregate literal terms
+                const aspc::Literal aggrLit = aggrRel->getAggregate().getAggregateLiterals().at(0);
+                checkLiteralTerms(aggrLit, variableToType);
+                //check aggregation var
+                std::string aggregationFunction = aggrRel->getAggregate().getAggregateFunction();
+                //can also count strings
+                if(aggregationFunction != aspc::Aggregate::aggregateFunction2String[aspc::AggregateFunction::COUNT]){
+                    //aggregation term must be numeric
+                    std::string aggrVar = aggrRel->getAggregate().getAggregateVariables().at(0);
+                    if(!isInteger(aggrVar)){
+                        assert(isVariable(aggrVar));
+                        if(variableToType.at(aggrVar) != aspc::TypeDirective::NUMERIC_TYPE)
+                            abortDueToTypeMismatch("Aggregation variable" + aggrVar + " is not of numeric type (only count can be made for strings but no other types of aggregation)");
+                    }
+                }
+                //check that guard terms are numeric
+                std::string guardTerm1 = aggrRel->getGuard().getTerm1();
+                std::string guardTerm2 = aggrRel->getGuard().getTerm2();
+                if(guardTerm1 != "" && isVariable(guardTerm1)){
+                    if(isVariable(guardTerm1)){
+                        if(!variableToType.count(guardTerm1))
+                            variableToType.emplace(std::make_pair(guardTerm1, aspc::TypeDirective::NUMERIC_TYPE));
+                        else{
+                            if(variableToType.at(guardTerm1) != aspc::TypeDirective::NUMERIC_TYPE)
+                                abortDueToTypeMismatch("Term " + guardTerm1 + " in aggregate guard must be of numeric type, but " + variableToType.at(guardTerm1) + " was found");
+                        }
+                    }else{
+                        if(!isInteger(guardTerm1))
+                            abortDueToTypeMismatch("Term " + guardTerm1 + " in aggregate guard must be of numeric type, but " + aspc::TypeDirective::STRING_TYPE + " was found");
+                    }
+                }
+                if(guardTerm2 != ""){
+                    if(isVariable(guardTerm2)){
+                        if(!variableToType.count(guardTerm2))
+                            variableToType.emplace(std::make_pair(guardTerm2, aspc::TypeDirective::NUMERIC_TYPE));
+                        else{
+                            if(variableToType.at(guardTerm2) != aspc::TypeDirective::NUMERIC_TYPE)
+                                abortDueToTypeMismatch("Term " + guardTerm2 + " in aggregate guard must be of numeric type, but " + variableToType.at(guardTerm2) + " was found");
+                        }
+                    }else{
+                        if(!isInteger(guardTerm2))
+                            abortDueToTypeMismatch("Term " + guardTerm2 + " in aggregate guard must be of numeric type, but " + aspc::TypeDirective::STRING_TYPE + " was found");
+                    }
+                }
+            }else{
+                //built in
+                const aspc::ArithmeticRelation* rel = (const aspc::ArithmeticRelation*) formula;
+                //this is the only case in which string type is ok since it is just a comparison
+                if(rel->getLeft().isSingleTerm() && rel->getRight().isSingleTerm()){
+                    std::string term1 = rel->getLeft().getTerm1();
+                    std::string term2 = rel->getRight().getTerm1();
+                    //comparison between different types
+                    if(variableToType.count(term1) != 0 && variableToType.count(term2) != 0){
+                        if(variableToType.at(term1) != variableToType.at(term2)) 
+                           abortDueToTypeMismatch("comparison problem -> term " + term1 + " is of type " + variableToType.at(term1) + ", while term" + term2 + " is of type" + variableToType.at(term2));
+                    }
+                    else{
+                        assert(rel->getComparisonType() == aspc::EQ);
+                        //assignment
+                        // X op Y  and X is bound
+                        if(variableToType.count(term1) == 0){
+                            variableToType.emplace(std::make_pair(term1, variableToType.at(term2)));
+                        }
+                        // X=Y  and Y is bound
+                        else
+                            variableToType.emplace(std::make_pair(term2, variableToType.at(term1)));
+                    }         
+                    
+                }else{
+                    //all terms must be numeric
+                    std::vector<std::string> leftTerms = rel->getLeft().getAllTerms();
+                    for(int j = 0; j < leftTerms.size(); ++j){
+                        if(leftTerms[j] != "" && isVariable(leftTerms[j])){
+                            if(variableToType.at(leftTerms[j]) != aspc::TypeDirective::NUMERIC_TYPE)
+                                abortDueToTypeMismatch("Arithmetic operation between non-numeric variables is not allowed (" + leftTerms[j] + " is not numeric) ");
+                            variableToType.emplace(std::make_pair(leftTerms[j], aspc::TypeDirective::NUMERIC_TYPE));
+                        }
+                    }
+                    std::vector<std::string> rightTerms = rel->getRight().getAllTerms();
+                    for(int j = 0; j < rightTerms.size(); ++j){
+                        if(rightTerms[j] != "" && isVariable(rightTerms[j])){
+                            if(variableToType.at(rightTerms[j]) != aspc::TypeDirective::NUMERIC_TYPE)
+                                abortDueToTypeMismatch("Arithmetic operation between non-numeric variables is not allowed (" + rightTerms[j] + " is not numeric) ");
+                            variableToType.emplace(std::make_pair(rightTerms[j], aspc::TypeDirective::NUMERIC_TYPE));
+                        }
+                    }
+                }   
+            }
+        }else{
+            const aspc::Literal* lit = (const aspc::Literal*) formula;
+            checkLiteralTerms(*lit, variableToType); 
+        }
+    }
+    //check head terms
+    //directive already exists
+    if(program.getTypeDirectiveByPredicateName(headLit.getPredicateName()) != nullptr){
+        checkLiteralTerms(headLit, variableToType);
+    }else{
+        //no directive - infer it from body variables
+        std::vector<std::string> termTypes;
+        for(int termIdx = 0; termIdx < headLit.getTerms().size(); ++termIdx){
+            std::string term = headLit.getTermAt(termIdx);
+            if(isVariable(term)){
+                termTypes.push_back(variableToType.at(term));
+                TypesManager::getInstance().addTermTypeForPredicate(headLit.getPredicateName(), termIdx, variableToType.at(term));
+            }else{
+                //number
+                if(isInteger(term)){
+                    termTypes.push_back(aspc::TypeDirective::NUMERIC_TYPE);
+                    TypesManager::getInstance().addTermTypeForPredicate(headLit.getPredicateName(), termIdx, aspc::TypeDirective::NUMERIC_TYPE);
+                }
+                else{//symbolic constant
+                    termTypes.push_back(aspc::TypeDirective::STRING_TYPE);
+                    TypesManager::getInstance().addTermTypeForPredicate(headLit.getPredicateName(), termIdx, aspc::TypeDirective::STRING_TYPE);
+                }
+            }
+        }
+        aspc::TypeDirective directive(headLit.getPredicateName(), termTypes);
+        program.addTypeDirective(directive);
+    }
+
+}
+
+void SparkJobsCompiler::compileSCC(std::vector<int>& scc, int compIdx){
     //debug print
     std::cout <<"Compiling component{";
     for(int i = 0; i< scc.size(); ++i){
@@ -177,6 +322,7 @@ void SparkJobsCompiler::compileSCC(std::vector<int>& scc, int i){
                 std::cout << ruleOrdering.at(id)[i] << " ";
             }
             std::cout << "\n";
+            inferTypes(id);
             //give declare delta as true if there are multiple rules defining the same predicate
             compileRule(id, program.getRulesForPredicate(predName).size() > 1);
         }
@@ -191,7 +337,7 @@ void SparkJobsCompiler::compileSCC(std::vector<int>& scc, int i){
             declaredDeltas.clear();
         }
     }
-    for(std::string pred : unpersistDatasetsAfterComponent[i]){
+    for(std::string pred : unpersistDatasetsAfterComponent[compIdx]){
         if(!unpersistedPredicates.count(pred)){
             unpersistedPredicates.insert(pred);
             //predicates that are edb do not need to be written
@@ -358,7 +504,6 @@ void SparkJobsCompiler::compileRule(unsigned id, bool declareDelta){
                 //join body with aggSet and then apply guard
                 std::unordered_set<std::string> toKeepVars;
                 std::vector<std::string> guardTerms = aggrRel->getGuard().getAllTerms();
-                std::unordered_set<std::string> emptyBoundVars;
 
                 //agregate res is always the last column
                 outfile << "col(\"term" << aggrResColNumber << "\").alias(\"term" << newTermIdx << "\"));\n"; // close select
@@ -384,7 +529,7 @@ void SparkJobsCompiler::compileRule(unsigned id, bool declareDelta){
                 std::string boundedVar = "";
                 //guard is bound
                 if(aggrRel->isBoundedValueAssignment(boundVars)){
-                    boundedVar = aggrRel->getAssignedVariable(emptyBoundVars);
+                    boundedVar = aggrRel->getAssignedVariable(boundVars);
                     //if bound and single term then we have #count{...} = T or #count{...} = constant
                     //std::string newColumnCreateCommand = "";
                     if(!aggrRel->getGuard().isSingleTerm() || !isVariable(aggrRel->getGuard().getStringRep())){
@@ -788,17 +933,8 @@ void SparkJobsCompiler::printPredicateLoading(const aspc::Literal* lit){
             if(!nonInterfacePredicates.count(lit->getPredicateName())){
                 outfile << ind++ << "if(Main.instanceFileExists(instancePath + \"" << predName << ".csv\", session))\n";
                 outfile << ind << predName << " = session.read().format(\"csv\").option(\"header\", false).schema(\"";
-                const aspc::TypeDirective* directive = program.getTypeDirectiveByPredicateName(predName);
-                if(directive != nullptr){
-                    std::cout << "\t type directive for predicate " << predName << " : ";
-                    directive->print();
-                }
                 for(int i = 0; i < predArity; ++i){
-                    //default type is string
-                    std::string termType = aspc::TypeDirective::INT_TYPE;
-                    if(directive != nullptr){
-                        termType = directive->getTermTypeFromPos(i);
-                    }
+                    std::string termType = TypesManager::getInstance().getTypeForPredicateTerm(predName, i);
                     if(i != predArity-1)
                         outfile << "term" << i << " " << termType << ", ";
                     else
@@ -936,4 +1072,63 @@ std::unordered_map<std::string, std::string> SparkJobsCompiler::printJoinBetween
     //close join
     outfile <<";\n";
     return toKeepVarsToNewCols;
+}
+
+//set types defined in program as types in TypeManager and default types if not specified
+void SparkJobsCompiler::setInputTypes(){
+    std::set<std::pair<std::string, unsigned> > headPredicatesAndArity = program.getHeadPredicatesAndArity();
+    //setting input types
+    for(const std::pair<std::string, int>& predicateAndArity : program.getAllPredicatesAndArity()){
+        const aspc::TypeDirective* dir = program.getTypeDirectiveByPredicateName(predicateAndArity.first);
+        if(dir != nullptr){
+            //set directive in directive manager
+            const std::vector<std::string>& termTypes = dir->getTermTypes();
+            //for every predicate term 
+            for(unsigned i = 0; i < termTypes.size(); ++i){
+                if(!TypesManager::getInstance().isTypeMismatch(predicateAndArity.first, i, termTypes[i])){
+                    TypesManager::getInstance().addTermTypeForPredicate(predicateAndArity.first, i, termTypes[i]);
+                }
+                else{
+                    std::cout <<"Input type mismatch\n";
+                    exit(180);
+                }
+            }
+        }else{
+            //do not add default type for IDB predicates
+            if(headPredicatesAndArity.count(predicateAndArity) == 0){
+                //setting default types
+                for(unsigned i = 0; i < predicateAndArity.second; ++i){
+                    TypesManager::getInstance().addTermTypeForPredicate(predicateAndArity.first, i, aspc::TypeDirective::DEFAULT_TYPE);
+                }
+                std::vector<std::string> termTypes(predicateAndArity.second, aspc::TypeDirective::DEFAULT_TYPE);
+                aspc::TypeDirective directive(predicateAndArity.first, termTypes);
+                program.addTypeDirective(directive);
+            }
+        }
+    }
+}
+
+void SparkJobsCompiler::abortDueToTypeMismatch(std::string helpMessage){
+    std::cout <<" Type mismatch: " << helpMessage << "\n";
+    exit(180);
+}
+
+void SparkJobsCompiler::checkLiteralTerms(const aspc::Literal& lit, std::unordered_map<std::string, std::string>& variableToType){
+    for(int termIdx = 0; termIdx < lit.getTerms().size(); ++termIdx){
+        std::string term = lit.getTerms().at(termIdx);
+        if(!isVariable(term)){
+            std::string constantType = isInteger(term) ? aspc::TypeDirective::NUMERIC_TYPE : aspc::TypeDirective::STRING_TYPE;
+            if(TypesManager::getInstance().isTypeMismatch(lit.getPredicateName(), termIdx, constantType))
+                abortDueToTypeMismatch("term " + std::to_string(termIdx) + " of predicate " + lit.getPredicateName() + " is of type " + constantType + " but it was supposed to be of type " + TypesManager::getInstance().getTypeForPredicateTerm(lit.getPredicateName(), termIdx));
+        }else{
+            if(variableToType.count(term)){
+                if(TypesManager::getInstance().isTypeMismatch(lit.getPredicateName(), termIdx, variableToType.at(term))){
+                    abortDueToTypeMismatch("term " + std::to_string(termIdx) + " of predicate " + lit.getPredicateName() + " is of type " + variableToType.at(term) + " but it was supposed to be of type " + TypesManager::getInstance().getTypeForPredicateTerm(lit.getPredicateName(), termIdx));
+                }
+            }else{
+                variableToType.emplace(std::make_pair(term, TypesManager::getInstance().getTypeForPredicateTerm(lit.getPredicateName(), termIdx)));
+                //add term to type
+            }
+        }
+    }
 }
