@@ -37,15 +37,23 @@ std::map<std::string,aspc::AggregateFunction> aspc::Aggregate::string2AggregateF
     {"#count", aspc::COUNT},
     {"#sum", aspc::SUM},
     {"#max", aspc::MAX},
-    {"#min", aspc::MIN}
+    {"#min", aspc::MIN},
+    {"#avg", aspc::AVG},
+    {"#stddev", aspc::STD_DEV},
+    {"#var", aspc::VAR},
+    {"#median", aspc::MED}
 
 };
 
 std::map<aspc::AggregateFunction,std::string> aspc::Aggregate::aggregateFunction2String = {
-    {aspc::COUNT,"#count"},
-    {aspc::SUM,"#sum"},
-    {aspc::MAX,"#max"},
-    {aspc::MIN,"#min"}
+    {aspc::COUNT, "#count"},
+    {aspc::SUM, "#sum"},
+    {aspc::MAX, "#max"},
+    {aspc::MIN, "#min"},
+    {aspc::AVG, "#avg"},
+    {aspc::STD_DEV, "#stddev"},
+    {aspc::VAR, "#var"},
+    {aspc::MED, "#median"}
 
 };
 aspc::Aggregate::Aggregate(){
@@ -54,6 +62,7 @@ aspc::Aggregate::Aggregate(){
 
 
 aspc::Aggregate::Aggregate(const std::vector<aspc::Literal> & literals, const std::vector<aspc::ArithmeticRelation>& inequalities_, const std::vector<std::string> & variables, std::string function): aggregateVariables(variables), aggregateFunction(string2AggregateFunction[function]){ 
+    std::cout <<"CREATED AGGREGATE WITH AGGREGARTE FUNCTION "<<function<<"\n";
     for(const aspc::Literal& l : literals){
         aggregateLiterals.push_back(aspc::Literal(l));
     }

@@ -14,7 +14,13 @@ std::set<int> ASPCore2CompileProgramListener::watchedTerminalTypes = std::set<in
     ASPCore2Parser::PLUS,
     ASPCore2Parser::DASH,
     ASPCore2Parser::AGGR_COUNT, 
+    ASPCore2Parser::AGGR_MAX,
+    ASPCore2Parser::AGGR_MIN,
     ASPCore2Parser::AGGR_SUM,
+    ASPCore2Parser::AGGR_AVG,
+    ASPCore2Parser::AGGR_STD_DEV,
+    ASPCore2Parser::AGGR_VAR,
+    ASPCore2Parser::AGGR_MEDIAN,
     ASPCore2Parser::TIMES,
     ASPCore2Parser::DIRECTIVE_VALUE_INT,
     ASPCore2Parser::DIRECTIVE_VALUE_STRING

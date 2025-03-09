@@ -210,7 +210,11 @@ aggregate_element:				basic_terms COLON naf_literals;
 aggregate_function:				AGGR_COUNT
 						| AGGR_MAX
 						| AGGR_MIN
-						| AGGR_SUM;
+						| AGGR_SUM
+						| AGGR_AVG
+						| AGGR_STD_DEV
+						| AGGR_VAR
+						| AGGR_MEDIAN;
 
 annotation_global:				 annotation_global_ordering 
 						| annotation_global_atom_indexed
@@ -369,7 +373,7 @@ NAF:						'not' ;
 
 
 DIRECTIVE_NAME:      				'#type' ;
-DIRECTIVE_VALUE_INT:				'int' ;
+DIRECTIVE_VALUE_INT:				'numeric' ;
 DIRECTIVE_VALUE_STRING:			'string' ;
 
 SYMBOLIC_CONSTANT:   				[a-z][A-Za-z_0-9]* ;
@@ -417,6 +421,11 @@ AGGR_COUNT:          				'#count' ;
 AGGR_MAX:            				'#max' ;
 AGGR_MIN:            				'#min' ;
 AGGR_SUM:            				'#sum' ;
+AGGR_AVG:          					'#avg' ;
+AGGR_STD_DEV:          				'#stddev' ;
+AGGR_VAR:          					'#var' ;
+AGGR_MEDIAN:          				'#median' ;
+
 ANNOTATION_GLOBAL_WASP_PROPAGATOR: 		'#propagator' ;
 
 

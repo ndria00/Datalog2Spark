@@ -552,6 +552,8 @@ public:
       //shift
       for(unsigned i = 0; i < terminals.size()-1; ++i){
         terminals[i] = terminals[i+1];
+        if(terminals[i] == aspc::TypeDirective::NUMERIC_TYPE_INPUT)
+          terminals[i] = aspc::TypeDirective::NUMERIC_TYPE;
       }
       terminals.pop_back();
       aspc::TypeDirective directive(predicateName, terminals);
@@ -855,7 +857,7 @@ public:
         std::cout << "Found negation"<<std::endl;
         naf=true;
       }
-      if(node->getSymbol()->getType() == ASPCore2Parser::AGGR_COUNT || node->getSymbol()->getType() == ASPCore2Parser::AGGR_SUM){
+      if(node->getSymbol()->getType() == ASPCore2Parser::AGGR_COUNT || node->getSymbol()->getType() == ASPCore2Parser::AGGR_SUM || node->getSymbol()->getType() == ASPCore2Parser::AGGR_AVG || node->getSymbol()->getType() == ASPCore2Parser::AGGR_STD_DEV || node->getSymbol()->getType() == ASPCore2Parser::AGGR_VAR || node->getSymbol()->getType() == ASPCore2Parser::AGGR_MEDIAN){
         std::cout << "reading function "<<node->getText()<<std::endl;
         nafAggregate = naf;
       }

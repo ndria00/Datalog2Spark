@@ -11,8 +11,7 @@ namespace aspc{
             std::vector<std::string> termTypes;
 
         public:
-        static std::string INT_TYPE;
-        static std::string FLOAT_TYPE;
+        static std::string NUMERIC_TYPE_INPUT;
         static std::string NUMERIC_TYPE;
         static std::string STRING_TYPE;
         static std::string DEFAULT_TYPE;

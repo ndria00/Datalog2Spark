@@ -18,12 +18,12 @@ std::unordered_map<std::string,std::string> SparkJobsCompiler::aggregateToFuncti
 std::unordered_map<std::string,std::string> SparkJobsCompiler::aggregateToDefaultValue = {
     {"#count", "0"},
     {"#sum", "0"},
-    {"#max", std::to_string(std::numeric_limits<float>::min())},
-    {"#min", std::to_string(std::numeric_limits<float>::max())},
-    {"#avg", "0"},
-    {"#stddev", "0"},
-    {"#var", "0"},
-    {"#median", "0"},
+    // {"#max", std::to_string(std::numeric_limits<float>::min())},
+    // {"#min", std::to_string(std::numeric_limits<float>::max())},
+    // {"#avg", "0"},
+    // {"#stddev", "0"},
+    // {"#var", "0"},
+    // {"#median", "0"},
 };
 
 std::unordered_map<SparkJobsCompiler::JoinType, std::string> SparkJobsCompiler::JoinTypeToSparkJoin = {
@@ -81,7 +81,7 @@ void SparkJobsCompiler::compileCheckFileExists(){
 
 std::string SparkJobsCompiler::compileEmptyDatasetWithLitTerms(const aspc::Literal* lit){
     std::string output = "";
-    output = "session.createDataFrame(Collections.emptyList(), new StructType()";
+    output = "session.createDataFrame(emptyRows, new StructType()";
     for(unsigned i = 0; i< lit->getTerms().size(); ++i){
         std::string termType = TypesManager::getInstance().getTypeForPredicateTerm(lit->getPredicateName(), i);
         output = output + ".add(\"term" + std::to_string(i) + "\", \"" + termType + "\")";
@@ -104,6 +104,7 @@ void SparkJobsCompiler::importAndOpenMainMethod(){
     outfile << ind << "import java.util.HashMap;\n";
     outfile << ind << "import java.util.List;\n";
     outfile << ind << "import java.util.Map;\n";
+    outfile << ind << "import java.util.ArrayList;\n";
     outfile << ind << "import java.util.Collections;\n";
     outfile << ind++ << "public class Main{\n";
     compileCheckFileExists();
@@ -111,6 +112,7 @@ void SparkJobsCompiler::importAndOpenMainMethod(){
     // outfile << ind << "SparkSession session = new SparkSession.Builder().appName(\"test\").master(\"spark://eracle:7077\").getOrCreate();\n";
     outfile << ind << "SparkSession session = new SparkSession.Builder().appName(\"test\").master(\"local\").getOrCreate();\n";
     outfile << ind << "session.sparkContext().setLogLevel(\"error\");\n";
+    outfile << ind << "ArrayList<Row> emptyRows = new ArrayList<Row>();\n"; 
     outfile << ind++ << "if(args.length != 2){\n";
     outfile << ind << "System.out.println(\"Excute with two arguments: a path to instance folder and a path to output folder\");\n";
     outfile << ind << "System.exit(1);\n";
@@ -145,7 +147,7 @@ void SparkJobsCompiler::compileProgram(){
     if(zeroArityPredicates.size() > 0){
         outfile << ind << "StructType emptySchema = new StructType();\n";
         outfile << ind << "emptySchema = emptySchema.add(\"dummy\", DataTypes.StringType);\n";
-        outfile << ind << "Dataset<Row> emptyDF = session.createDataFrame(Collections.emptyList(),emptySchema);\n";
+        outfile << ind << "Dataset<Row> emptyDF = session.createDataFrame(emptyRows, emptySchema);\n";
     }
     for(int i = sccs.size() -1; i >=0; --i)
         computeToUnpersistDatasets(sccs, i, allProgramPredicates);
@@ -547,6 +549,8 @@ void SparkJobsCompiler::compileRule(unsigned id, bool declareDelta){
                         variableRemapping.erase(originalAggregationColName);
                         variableRemapping.emplace(boundedVar, originalAggregationColName);
                         rightRelation->variableToTerm.emplace(boundedVar, aggrResColNumber);
+                        //original aggregation var is not kept, since it is the same as assigned variable
+                        toKeepVars.erase(originalAggregationColName);
                         toKeepVars.insert(boundedVar);
                     }
                 }else{
@@ -561,24 +565,26 @@ void SparkJobsCompiler::compileRule(unsigned id, bool declareDelta){
                 //variables appearing in head have to be kept
                 headLit.addVariablesToSet(toKeepVars);
 
-                //TODO check for negation
-                std::unordered_map<std::string, std::string> oldTermsToNewTerms = printJoinBetweenRelations(leftRelation, rightRelation, newRelationName, JoinType::LEFT, id, headVars, toKeepVars, nextBodyVars);
-                std::string assignedValColumnName = "";
-                std::unordered_map<std::string, std::string> oldRemapping(variableRemapping.begin(), variableRemapping.end());
-                variableRemapping.clear();
-                //update remapping so that the value of the aggregation column can be calculated for tuples in left join that are not in inner join
-                // c->1 and term1->term2
-                for(auto pair : oldRemapping){
-                    variableRemapping[pair.first] = oldTermsToNewTerms[pair.second];
-                }
-                std::string newAggregationColName = oldTermsToNewTerms[originalAggregationColName];
-                if(aggrRel->isBoundedValueAssignment(boundVars)){
-                    outfile << ind << newRelationName << " = " << newRelationName << ".withColumn(\"" << variableRemapping[boundedVar] << "\", coalesce(col(\"" << newAggregationColName << "\"),";
-                    variableRemapping.erase(boundedVar);
-                    outfile <<" expr(\"" << aggrRel->getAssignmentAsStringForRelation(variableRemapping, newAggregationColName, true, SparkJobsCompiler::aggregateToDefaultValue[aggrName])<< "\")));\n";
-                }else{
-                    outfile << ind << newRelationName << " = " << newRelationName << ".where(\"" << SparkJobsCompiler::aggregateToDefaultValue[aggrName] << " " << aspc::ArithmeticRelation::comparisonType2String[aggrRel->getComparisonType()] << " " << aggrRel->getGuard().getStringRepWithRemapping(variableRemapping) << "\");\n";
-                }
+                if(aggregateToDefaultValue.count(aggrName)){
+                    //TODO check for negation
+                    std::unordered_map<std::string, std::string> oldTermsToNewTerms = printJoinBetweenRelations(leftRelation, rightRelation, newRelationName, JoinType::LEFT, id, headVars, toKeepVars, nextBodyVars);
+                    std::unordered_map<std::string, std::string> oldRemapping(variableRemapping.begin(), variableRemapping.end());
+                    variableRemapping.clear();
+                    //update remapping so that the value of the aggregation column can be calculated for tuples in left join that are not in inner join
+                    // c->1 and term1->term2
+                    for(auto pair : oldRemapping){
+                        variableRemapping[pair.first] = oldTermsToNewTerms[pair.second];
+                    }
+                    std::string newAggregationColName = oldTermsToNewTerms[originalAggregationColName];
+                    if(aggrRel->isBoundedValueAssignment(boundVars)){
+                        outfile << ind << newRelationName << " = " << newRelationName << ".withColumn(\"" << variableRemapping[boundedVar] << "\", coalesce(col(\"" << newAggregationColName << "\"),";
+                        variableRemapping.erase(boundedVar);
+                        outfile <<" expr(\"" << aggrRel->getAssignmentAsStringForRelation(variableRemapping, newAggregationColName, true, SparkJobsCompiler::aggregateToDefaultValue[aggrName])<< "\")));\n";
+                    }else{
+                        outfile << ind << newRelationName << " = " << newRelationName << ".where(\"" << SparkJobsCompiler::aggregateToDefaultValue[aggrName] << " " << aspc::ArithmeticRelation::comparisonType2String[aggrRel->getComparisonType()] << " " << aggrRel->getGuard().getStringRepWithRemapping(variableRemapping) << "\");\n";
+                    }
+                }else
+                    printJoinBetweenRelations(leftRelation, rightRelation, newRelationName, JoinType::INNER, id, headVars, toKeepVars, nextBodyVars);
                 //switch relations
                 delete leftRelation;
                 leftRelation = rightRelation;

@@ -42,7 +42,7 @@
 namespace aspc {
     
     enum AggregateFunction {
-        COUNT = 0, SUM, MAX, MIN, UNKNOWN
+        COUNT = 0, SUM, MAX, MIN, AVG, STD_DEV, VAR, MED, UNKNOWN
     };
     
     class Aggregate : public Formula{
