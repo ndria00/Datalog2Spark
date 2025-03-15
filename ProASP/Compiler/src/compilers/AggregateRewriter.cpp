@@ -46,19 +46,20 @@ void AggregateRewriter::rewriteRuleWithAggregate(const aspc::Rule& rule){
     std::unordered_set<std::string> conjVars;
     relWithAgg.getAggregate().addAggregateLiteralVariablesToSet(conjVars);
     std::unordered_set<std::string> headVars;
-    std::vector<std::string> headTerms;
-    //\rho
-    for(std::string var : externalVars){
-        if(conjVars.count(var) && headVars.insert(var).second){
-            headTerms.push_back(var);
+    std::vector<std::string> aggSetTerms;
+    //\rho (terms in aggregate conjunction that are also in body)
+    for(const aspc::Literal&  lit : relWithAgg.getAggregate().getAggregateLiterals()){
+        for(std::string term : lit.getTerms()){
+            if(externalVars.count(term) && isVariable(term) && headVars.insert(term).second)
+                aggSetTerms.push_back(term);
         }
     }
-    //V
+    //V (terms in var set)
     for(std::string var : relWithAgg.getAggregate().getAggregateVariables()){
         if(headVars.insert(var).second)
-            headTerms.push_back(var);
+            aggSetTerms.push_back(var);
     }
-    for(std::string var : headTerms){
+    for(std::string var : aggSetTerms){
         aggSetRuleHead.addTerm(var);
     }
     //construct aggSetRule body
@@ -74,27 +75,67 @@ void AggregateRewriter::rewriteRuleWithAggregate(const aspc::Rule& rule){
         // aggSetBody.push_back(lit);
     }
     joinBodyLiteral.setTerms(joinBodyTermsVec);
-    rewrittenProgram.addPredicate(joinBodyLiteral.getPredicateName(), joinBodyLiteral.getAriety());
-    aspc::Rule joinRule({joinBodyLiteral.getAtom()}, rule.getBodyLiterals(), rule.getArithmeticRelations(), {}, false);
-    std::cout <<"Created join rule with id: " << joinRule.getRuleId()<< "\n";
-    rewrittenProgram.addRule(joinRule);
-    aggSetBody.push_back(joinBodyLiteral);
+    //if rule with aggregate has only one body literal no rule for generating body is needed
+    // no airthmnetic relation admitted in such case since a rule with aggregate is either
+    //of the form h :- aggr. or h :- bodyJoin, aggr.  
+    bool generateBodyRule = rule.getBodyLiterals().size() + rule.getArithmeticRelations().size() > 1;
+    if(generateBodyRule){
+        rewrittenProgram.addPredicate(joinBodyLiteral.getPredicateName(), joinBodyLiteral.getAriety());
+        aspc::Rule joinRule({joinBodyLiteral.getAtom()}, rule.getBodyLiterals(), rule.getArithmeticRelations(), {}, false);
+        std::cout <<"Created join rule with id: " << joinRule.getRuleId()<< "\n";
+        rewrittenProgram.addRule(joinRule);
+        aggSetBody.push_back(joinBodyLiteral);
+    }
     for(const aspc::Literal& lit : relWithAgg.getAggregate().getAggregateLiterals()){
         aggSetBody.push_back(lit);
     }
     rewrittenProgram.addPredicate(aggSetRuleHead.getPredicateName(), aggSetRuleHead.getAriety());
-    aspc::Rule aggSetRule({aggSetRuleHead}, aggSetBody, rule.getArithmeticRelations(),{}, false);
-    std::cout <<"Created aggSet rule with id: " << aggSetRule.getRuleId()<< "\n";
-    rewrittenProgram.addRule(aggSetRule);
- 
+    //if aggregate in rule has only one literal in the conjunction of the aggregate and there are no external vars
+    //do not create rule for generating aggSet, but use directly that literal as AggSet
+    bool aggLitCanBeAggSet = false;
+    if(relWithAgg.getAggregate().getAggregateLiterals().size() == 1){
+        //the above condition is satisfied if all terms of aggSetRuleHead are inside the single literal in conj
+        std::unordered_set<std::string> conjTermsSet;
+        for(std::string t : relWithAgg.getAggregate().getAggregateLiterals().at(0).getTerms())
+            conjTermsSet.insert(t);
+        aggLitCanBeAggSet = true;
+        for(std::string term : aggSetRuleHead.getTerms()){
+            if(!conjTermsSet.count(term)){
+                aggLitCanBeAggSet = false;
+            }
+        }
+
+    }
+    if(!aggLitCanBeAggSet){
+        //rule for generating aggSet
+        aspc::Rule aggSetRule({aggSetRuleHead}, aggSetBody, rule.getArithmeticRelations(),{}, false);
+        std::cout <<"Created aggSet rule with id: " << aggSetRule.getRuleId()<< "\n";
+        rewrittenProgram.addRule(aggSetRule);
+    }
     //create normal rule with agg_set in body
     aspc::Literal aggSetLiteral(false, aggSetRuleHead);
-
-    aspc::ArithmeticRelationWithAggregate rewrittenAggregate(false, relWithAgg.getGuard(), aspc::Aggregate({aggSetLiteral}, {},
+    
+    std::vector<aspc::Literal> aggLiterals;
+    if(aggLitCanBeAggSet)
+        aggLiterals.push_back(relWithAgg.getAggregate().getAggregateLiterals().at(0));
+    else
+        aggLiterals.push_back(aggSetLiteral);
+    aspc::ArithmeticRelationWithAggregate rewrittenAggregate(false, relWithAgg.getGuard(), aspc::Aggregate(aggLiterals, {},
         relWithAgg.getAggregate().getAggregateVariables(), relWithAgg.getAggregate().getAggregateFunction()), relWithAgg.getComparisonType(), relWithAgg.isNegated()
     );
-    aspc::Rule ruleWithAggSet(rule.getHead(), {joinBodyLiteral}, rule.getArithmeticRelations(), {rewrittenAggregate}, false);
-    std::cout <<"Created headR rule with id: " << ruleWithAggSet.getRuleId()<< "\n";
+    std::vector<aspc::Literal> bodyLits;
+    //rule made of body + aggregate
+    if(generateBodyRule){
+        bodyLits.push_back(joinBodyLiteral);
+    }
+    else{// join rule for body was not generated
+        //body is made of a signle literal and no join rule was created
+        if(rule.getBodyLiterals().size() == 1)
+            bodyLits.push_back(rule.getBodyLiterals().at(0));
+    }
+    aspc::Rule ruleWithAggSet(rule.getHead(), bodyLits, rule.getArithmeticRelations(), {rewrittenAggregate}, false);
+    std::cout <<"Created head rule with id: " << ruleWithAggSet.getRuleId()<< "\n";
     rewrittenProgram.addRule(ruleWithAggSet);
+    
     nextAggId++;
 }

@@ -109,9 +109,7 @@ void SparkJobsCompiler::importAndOpenMainMethod(){
     outfile << ind++ << "public class Main{\n";
     compileCheckFileExists();
     outfile << ind++ << "public static void main(String[] args){\n";
-    // outfile << ind << "SparkSession session = new SparkSession.Builder().appName(\"test\").master(\"spark://eracle:7077\").getOrCreate();\n";
-    outfile << ind << "SparkSession session = new SparkSession.Builder().appName(\"test\").master(\"local\").getOrCreate();\n";
-    outfile << ind << "session.sparkContext().setLogLevel(\"error\");\n";
+    printSparkConfiguration();
     outfile << ind << "ArrayList<Row> emptyRows = new ArrayList<Row>();\n"; 
     outfile << ind++ << "if(args.length != 2){\n";
     outfile << ind << "System.out.println(\"Excute with two arguments: a path to instance folder and a path to output folder\");\n";
@@ -316,8 +314,13 @@ void SparkJobsCompiler::compileSCC(std::vector<int>& scc, int compIdx){
         for(int id : program.getRulesForPredicate(predName)){
             if(!program.getRule(id).containsAggregate())
                 defineRuleOrdering(id);
-            else
-                ruleOrdering[id] = {0,1}; //rule with aggregate are normalized and are of the form h :- bodyLit(...), aggr.
+            else{
+                //rule with aggregate are normalized and are of the form h :- bodyLit(...), aggr.
+                if(program.getRule(id).getBodyLiterals().size() == 0) // h:- aggr.
+                    ruleOrdering[id] = {0}; 
+                else
+                    ruleOrdering[id] = {0,1};
+            }
             std::cout <<"Rule Ordering for ";
             program.getRule(id).print();
             for(unsigned i = 0; i < ruleOrdering.at(id).size(); ++i){
@@ -344,15 +347,7 @@ void SparkJobsCompiler::compileSCC(std::vector<int>& scc, int compIdx){
             unpersistedPredicates.insert(pred);
             //predicates that are edb do not need to be written
             if(headPredicates.count(pred)){
-                if(zeroArityPredicates.count(pred)){
-                    outfile << ind++ << "if(exists_" << pred << ")\n";
-                    outfile << ind << "emptyDF.write().mode(\"overwrite\").option(\"header\", \"false\").option(\"delimiter\", \";\").csv(outputPath + \"/" << pred << "\");\n";
-                    --ind;
-                }else{
-                    outfile << ind << pred << ".count();\n";
-                    outfile << ind << pred << ".write().mode(\"overwrite\").option(\"header\", \"false\").option(\"delimiter\", \";\").csv(outputPath + \"/" << pred << "\");\n";
-                    outfile << ind << pred << ".unpersist();\n";
-                }
+                printPredicateSaving(pred);
             }
         }
     }
@@ -429,10 +424,12 @@ void SparkJobsCompiler::compileRule(unsigned id, bool declareDelta){
         const aspc::Formula* formula = body[ruleOrder[i]];
         if(!formula->isLiteral()){
             if(formula->containsAggregate()){
-                assert(leftRelation != nullptr);
                 std::unordered_map<std::string, std::string> variableRemapping;
-                for(auto entry : leftRelation->variableToTerm){
-                    variableRemapping.emplace(std::make_pair(entry.first, "term" + std::to_string(entry.second)));
+                //left relation is not null if there is a body literal
+                if(leftRelation != nullptr){
+                    for(auto entry : leftRelation->variableToTerm){
+                        variableRemapping[entry.first] = "term" + std::to_string(entry.second);
+                    }
                 }
                 const aspc::ArithmeticRelationWithAggregate* aggrRel = (const aspc::ArithmeticRelationWithAggregate*) formula;
                 // get agg_set
@@ -440,7 +437,9 @@ void SparkJobsCompiler::compileRule(unsigned id, bool declareDelta){
                 rightRelation = new Relation();
                 rightRelation->name =  aggrLit.getPredicateName() + "_" + std::to_string(id);
                 //get body vars
-                std::unordered_set<std::string> externalVars =  computeExternalVariablesForAggregate(id, ruleOrder[i]);
+                std::unordered_set<std::string> externalVars;
+                if(rule.getBodyLiterals().size() != 0)
+                    externalVars =  computeExternalVariablesForAggregate(id, ruleOrder[i]);
                 std::vector<std::string> aggSetTerms = aggrRel->getAggregate().getAggregateLiterals().at(0).getTerms();
                 
                 int termIdx = 0;
@@ -453,27 +452,23 @@ void SparkJobsCompiler::compileRule(unsigned id, bool declareDelta){
                             groupVariables.push_back(std::make_pair(aggSetTerms[varIdx], "term" + std::to_string(termIdx)));
                         }
                         termIdx++;
-                        // if(variableRemapping.emplace(aggSetTerms[varIdx], "term" + std::to_string(termIdx)).second)
-                        //     termIdx++;
 
                     }
                 }
                 outfile << ind << "Dataset<Row> " << rightRelation->name << " = " << aggrLit.getPredicateName() << ".groupBy(";
-
+                //first var of the symbolic set of the aggregate            
+                std::string aggrSetAggVariable =  aggrRel->getAggregate().getAggregateVariables().at(0);
+                int aggrSetAggTermCol = rightRelation->variableToTerm.at(aggrSetAggVariable);
                 for(unsigned groupVarIdx = 0; groupVarIdx < groupVariables.size(); ++groupVarIdx){
-                    outfile << "\"" << groupVariables[groupVarIdx].second << "\"" << separatorIfNotLast(groupVarIdx, groupVariables.size()-1, ", ");
+                    outfile << "co(\"" << groupVariables[groupVarIdx].second << "\")" << separatorIfNotLast(groupVarIdx, groupVariables.size()-1, ", ");
                 }
                 //close groupBy
                 outfile << ").agg(";
 
-                //first var of the symbolic set of the aggregate            
-                std::string aggrSetAggVariable =  aggrRel->getAggregate().getAggregateVariables().at(0);
-                int aggrSetAggTermCol;
                 std::string aggrFunction = SparkJobsCompiler::aggregateToFunction[aggrRel->getAggregate().getAggregateFunction()];
                 std::string aggrName = aggrRel->getAggregate().getAggregateFunction();
                 if(isVariable(aggrSetAggVariable)){
-                    aggrSetAggTermCol = rightRelation->variableToTerm.at(aggrSetAggVariable);
-                    outfile << aggrFunction << "(\"term" << aggrSetAggTermCol << "\")";
+                    outfile << aggrFunction << "(col(\"term" << aggrSetAggTermCol << "\"))";
                 }else{//first var is constant
                     std::string aggSetTermsLit;
                     if(isInteger(aggrSetAggVariable))
@@ -484,8 +479,9 @@ void SparkJobsCompiler::compileRule(unsigned id, bool declareDelta){
                 }
                 //aggregation function
                 //add aggregated column as new col of the grouped dataset
+                //(the id is given such that it does not clash with AggSet columns for avoiding a double aliasing)
                 int aggrResColNumber;
-                aggrResColNumber = groupVariables.size();
+                aggrResColNumber =  rightRelation->variableToTerm.size(); //groupVariables.size();
                 
                 outfile <<".as(\"term" << aggrResColNumber << "\")";
                 //close agg
@@ -502,7 +498,6 @@ void SparkJobsCompiler::compileRule(unsigned id, bool declareDelta){
                     aggrRelationTerms.emplace(pair.first, newTermIdx);
                     newTermIdx++;
                 }
-                
                 //join body with aggSet and then apply guard
                 std::unordered_set<std::string> toKeepVars;
                 std::vector<std::string> guardTerms = aggrRel->getGuard().getAllTerms();
@@ -510,16 +505,15 @@ void SparkJobsCompiler::compileRule(unsigned id, bool declareDelta){
                 //agregate res is always the last column
                 outfile << "col(\"term" << aggrResColNumber << "\").alias(\"term" << newTermIdx << "\"));\n"; // close select
                 aggrResColNumber = newTermIdx;
-                    
                 rightRelation->variableToTerm.clear();
                 for(auto pair : aggrRelationTerms){
-                    rightRelation->variableToTerm.emplace(pair.first, pair.second);
-                    variableRemapping.emplace(pair.first, "term" + pair.second);
+                    rightRelation->variableToTerm[pair.first] = pair.second;
+                    variableRemapping[pair.first] = "term" + pair.second;
                 }
-                std::string originalAggregationColName = "term"+ std::to_string(aggrResColNumber);
-                rightRelation->variableToTerm.emplace(originalAggregationColName, aggrResColNumber);
-                variableRemapping.emplace(originalAggregationColName, originalAggregationColName);
-                toKeepVars.emplace(originalAggregationColName);
+                std::string aggregationResultColName = "term"+ std::to_string(aggrResColNumber);
+                rightRelation->variableToTerm[aggregationResultColName] = aggrResColNumber;
+                variableRemapping[aggregationResultColName] = aggregationResultColName;
+                toKeepVars.emplace(aggregationResultColName);
                 
 
                 //keep all guard variables for assigning/checking default aggr value after left join
@@ -539,63 +533,100 @@ void SparkJobsCompiler::compileRule(unsigned id, bool declareDelta){
                         int lastColumn = rightRelation->variableToTerm.size();
                         rightRelation->variableToTerm.emplace(boundedVar, lastColumn); 
                         const aspc::ArithmeticExpression expr = (const aspc::ArithmeticExpression) aggrRel->getGuard();
-                        outfile << ind << rightRelation->name << " = " << rightRelation->name << ".withColumn(\"term" << rightRelation->variableToTerm.at(boundedVar) << "\", expr(\"" << aggrRel->getAssignmentAsStringForRelation(variableRemapping, originalAggregationColName, false, "") << "\"));\n";  
-                        variableRemapping.emplace(boundedVar, "term" + std::to_string(lastColumn));
+                        outfile << ind << rightRelation->name << " = " << rightRelation->name << ".withColumn(\"term" << rightRelation->variableToTerm.at(boundedVar) << "\", expr(\"" << aggrRel->getAssignmentAsStringForRelation(variableRemapping, aggregationResultColName, false, "") << "\"));\n";  
+                        variableRemapping[boundedVar] = "term" + std::to_string(lastColumn);
                     }else{
                         //erase aggregation column from relation and subsistute it with the new mapping
                         //Example #count{...} produces term_n that maps to no variable
                         //#count{...} = C produces term_n that maps to no variable, but now it can map directly to C without adding a new col
-                        rightRelation->variableToTerm.erase(originalAggregationColName);
-                        variableRemapping.erase(originalAggregationColName);
-                        variableRemapping.emplace(boundedVar, originalAggregationColName);
+                        rightRelation->variableToTerm.erase(aggregationResultColName);
+                        variableRemapping.erase(aggregationResultColName);
+                        variableRemapping[boundedVar]= aggregationResultColName;
                         rightRelation->variableToTerm.emplace(boundedVar, aggrResColNumber);
                         //original aggregation var is not kept, since it is the same as assigned variable
-                        toKeepVars.erase(originalAggregationColName);
+                        toKeepVars.erase(aggregationResultColName);
                         toKeepVars.insert(boundedVar);
                     }
                 }else{
-                    
                     //keep aggrVar
-                    toKeepVars.insert(originalAggregationColName);
+                    toKeepVars.insert(aggregationResultColName);
                     //aggr is not an assignment -> do a filter
-                    outfile << ind << rightRelation->name << " = " << rightRelation->name << ".where(\"term" << aggrResColNumber << " " << aspc::ArithmeticRelation::comparisonType2String[aggrRel->getComparisonType()] << " " << aggrRel->getGuard().getStringRepWithRemapping(variableRemapping) << "\");\n";
+                    if(!aggrRel->getGuard().isSingleTerm() || (aggrRel->getGuard().isSingleTerm() && !isVariable(aggrRel->getGuard().getStringRep()))){
+                        outfile << ind << rightRelation->name << " = " << rightRelation->name << ".where(\"term" << aggrResColNumber << " " << aspc::ArithmeticRelation::comparisonType2String[aggrRel->getComparisonType()] << " " << aggrRel->getGuard().getStringRepWithRemapping(variableRemapping) << "\");\n";
+                    }
                 }
                 //no next body vars - rules are normalized and aggregate is evaluated as last
                 std::unordered_set<std::string> nextBodyVars;
                 //variables appearing in head have to be kept
                 headLit.addVariablesToSet(toKeepVars);
-
-                if(aggregateToDefaultValue.count(aggrName)){
-                    //TODO check for negation
-                    std::unordered_map<std::string, std::string> oldTermsToNewTerms = printJoinBetweenRelations(leftRelation, rightRelation, newRelationName, JoinType::LEFT, id, headVars, toKeepVars, nextBodyVars);
-                    std::unordered_map<std::string, std::string> oldRemapping(variableRemapping.begin(), variableRemapping.end());
-                    variableRemapping.clear();
-                    //update remapping so that the value of the aggregation column can be calculated for tuples in left join that are not in inner join
-                    // c->1 and term1->term2
-                    for(auto pair : oldRemapping){
-                        variableRemapping[pair.first] = oldTermsToNewTerms[pair.second];
-                    }
-                    std::string newAggregationColName = oldTermsToNewTerms[originalAggregationColName];
-                    if(aggrRel->isBoundedValueAssignment(boundVars)){
-                        outfile << ind << newRelationName << " = " << newRelationName << ".withColumn(\"" << variableRemapping[boundedVar] << "\", coalesce(col(\"" << newAggregationColName << "\"),";
-                        variableRemapping.erase(boundedVar);
-                        outfile <<" expr(\"" << aggrRel->getAssignmentAsStringForRelation(variableRemapping, newAggregationColName, true, SparkJobsCompiler::aggregateToDefaultValue[aggrName])<< "\")));\n";
+                if(leftRelation != nullptr){
+                    if(aggregateToDefaultValue.count(aggrName)){
+                        std::unordered_map<std::string, std::string> oldTermsToNewTerms = printJoinBetweenRelations(leftRelation, rightRelation, newRelationName, JoinType::LEFT, id, headVars, toKeepVars, nextBodyVars);
+                        std::unordered_map<std::string, std::string> oldRemapping(variableRemapping.begin(), variableRemapping.end());
+                        variableRemapping.clear();
+                        //update remapping so that the value of the aggregation column can be calculated for tuples in left join that are not in inner join
+                        // c->1 and term1->term2
+                        for(auto pair : oldRemapping){
+                            variableRemapping[pair.first] = oldTermsToNewTerms[pair.second];
+                        }
+                        std::string newAggregationColName = oldTermsToNewTerms[aggregationResultColName];
+                        if(aggrRel->isBoundedValueAssignment(boundVars)){
+                            outfile << ind << newRelationName << " = " << newRelationName << ".withColumn(\"" << variableRemapping[boundedVar] << "\", coalesce(col(\"" << newAggregationColName << "\"),";
+                            variableRemapping.erase(boundedVar);
+                            outfile <<" expr(\"" << aggrRel->getAssignmentAsStringForRelation(variableRemapping, newAggregationColName, true, SparkJobsCompiler::aggregateToDefaultValue[aggrName])<< "\")));\n";
+                        }else{
+                            outfile << ind << newRelationName << " = " << newRelationName << ".where(\"" << SparkJobsCompiler::aggregateToDefaultValue[aggrName] << " " << aspc::ArithmeticRelation::comparisonType2String[aggrRel->getComparisonType()] << " " << aggrRel->getGuard().getStringRepWithRemapping(variableRemapping) << "\");\n";
+                        }
                     }else{
-                        outfile << ind << newRelationName << " = " << newRelationName << ".where(\"" << SparkJobsCompiler::aggregateToDefaultValue[aggrName] << " " << aspc::ArithmeticRelation::comparisonType2String[aggrRel->getComparisonType()] << " " << aggrRel->getGuard().getStringRepWithRemapping(variableRemapping) << "\");\n";
+                        std::unordered_map<std::string, std::string> oldTermsToNewTerms = printJoinBetweenRelations(leftRelation, rightRelation, newRelationName, JoinType::INNER, id, headVars, toKeepVars, nextBodyVars);       
+                        std::unordered_map<std::string, std::string> oldRemapping(variableRemapping.begin(), variableRemapping.end());
+                        variableRemapping.clear();
+                        for(auto pair : oldRemapping){
+                            variableRemapping[pair.first] = oldTermsToNewTerms[pair.second];
+                        }
+                        std::string newAggregationColName = oldTermsToNewTerms[aggregationResultColName];
+                        outfile << ind << newRelationName << " = " << newRelationName << ".where(\"" << newAggregationColName << " " << aspc::ArithmeticRelation::comparisonType2String[aggrRel->getComparisonType()] << " " << aggrRel->getGuard().getStringRepWithRemapping(variableRemapping) << "\");\n";
                     }
-                }else
-                    printJoinBetweenRelations(leftRelation, rightRelation, newRelationName, JoinType::INNER, id, headVars, toKeepVars, nextBodyVars);
-                //switch relations
-                delete leftRelation;
-                leftRelation = rightRelation;
-                rightRelation = nullptr;
-                leftRelation->name =  newRelationName;
+                    
+                    //switch relations
+                    delete leftRelation;
+                    leftRelation = rightRelation;
+                    rightRelation = nullptr;
+                    leftRelation->name =  newRelationName;
+                }else{
+                    if(aggrRel->isBoundedValueAssignment(boundVars)){
+                        if(!aggrRel->getGuard().isSingleTerm() || !isVariable(aggrRel->getGuard().getStringRep())){
+                            //add bound var as last column of the left relation
+                            int lastColumn = rightRelation->variableToTerm.size();
+                            rightRelation->variableToTerm.emplace(boundedVar, lastColumn); 
+                            const aspc::ArithmeticExpression expr = (const aspc::ArithmeticExpression) aggrRel->getGuard();
+                            outfile << ind << rightRelation->name << " = " << rightRelation->name << ".withColumn(\"term" << rightRelation->variableToTerm.at(boundedVar) << "\", expr(\"" << aggrRel->getAssignmentAsStringForRelation(variableRemapping, aggregationResultColName, false, "") << "\"));\n";  
+                            variableRemapping[boundedVar] = "term" + std::to_string(lastColumn);
+                        }else{
+                            //erase aggregation column from relation and subsistute it with the new mapping
+                            //Example #count{...} produces term_n that maps to no variable
+                            //#count{...} = C produces term_n that maps to no variable, but now it can map directly to C without adding a new col
+                            rightRelation->variableToTerm.erase(aggregationResultColName);
+                            variableRemapping.erase(aggregationResultColName);
+                            variableRemapping[boundedVar] = aggregationResultColName;
+                            rightRelation->variableToTerm.emplace(boundedVar, aggrResColNumber);
+                            //original aggregation var is not kept, since it is the same as assigned variable
+                            toKeepVars.erase(aggregationResultColName);
+                            toKeepVars.insert(boundedVar);
+                        }
+                    }else{
+                        outfile << ind << rightRelation->name << " = " << rightRelation->name << ".where(\"term" << aggrResColNumber << " " << aspc::ArithmeticRelation::comparisonType2String[aggrRel->getComparisonType()] << " " << aggrRel->getGuard().getStringRepWithRemapping(variableRemapping) << "\");\n";
+                    }
+                    assert(rightRelation != nullptr);
+                    leftRelation = rightRelation;
+                    rightRelation = nullptr;
+                }
                 
             }else{
                 assert(leftRelation != nullptr);
                 std::unordered_map<std::string, std::string> variableRemapping;
                 for(auto entry : leftRelation->variableToTerm){
-                    variableRemapping.emplace(std::make_pair(entry.first, "term" + std::to_string(entry.second)));
+                    variableRemapping[entry.first] = "term" + std::to_string(entry.second);
                 }
                 const aspc::ArithmeticRelation* rel = (const aspc::ArithmeticRelation*) formula;
                 std::unordered_set<std::string> relationVars;
@@ -623,7 +654,7 @@ void SparkJobsCompiler::compileRule(unsigned id, bool declareDelta){
                         //add bound var as last column of the left relation
                         int lastColumn = leftRelation->variableToTerm.size();
                         leftRelation->variableToTerm.emplace(boundedVar, lastColumn); 
-                        variableRemapping.emplace(boundedVar, "term" + std::to_string(lastColumn));
+                        variableRemapping[boundedVar] = "term" + std::to_string(lastColumn);
                         outfile << ind << leftRelation->name << " = " << leftRelation->name << ".withColumn(\"term" << leftRelation->variableToTerm.at(boundedVar) << "\", expr(\"" << rel->getStringRepWithRemapping(variableRemapping) << "\"));\n";  
                     }                    
                     boundVars.insert(boundedVar);
@@ -962,8 +993,22 @@ void SparkJobsCompiler::printPredicateLoading(const aspc::Literal* lit){
     }
 }
 
-
-
+void SparkJobsCompiler::printPredicateSaving(std::string pred){
+    if(zeroArityPredicates.count(pred)){
+        outfile << ind++ << "if(exists_" << pred << ")\n";
+        outfile << ind << "emptyDF.write().mode(\"overwrite\").option(\"header\", \"false\").option(\"delimiter\", \";\").csv(outputPath + \"/" << pred << "\");\n";
+        --ind;
+    }else{
+        outfile << ind << pred << ".count();\n";
+        outfile << ind << pred << ".write().mode(\"overwrite\").option(\"header\", \"false\").option(\"delimiter\", \";\").csv(outputPath + \"/" << pred << "\");\n";
+        outfile << ind << pred << ".unpersist();\n";
+    }
+}
+void SparkJobsCompiler::printSparkConfiguration(){
+    // outfile << ind << "SparkSession session = new SparkSession.Builder().appName(\"test\").master(\"spark://eracle:7077\").getOrCreate();\n";
+    outfile << ind << "SparkSession session = new SparkSession.Builder().appName(\"test\").master(\"local\").getOrCreate();\n";
+    outfile << ind << "session.sparkContext().setLogLevel(\"error\");\n";
+}
 std::unordered_set<std::string> SparkJobsCompiler::computeExternalVariablesForAggregate(unsigned ruleId, unsigned formulaId){
     const aspc::Rule& rule = program.getRule(ruleId);
     const aspc::Formula* formula = rule.getFormulas().at(formulaId);

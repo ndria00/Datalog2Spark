@@ -62,7 +62,6 @@ aspc::Aggregate::Aggregate(){
 
 
 aspc::Aggregate::Aggregate(const std::vector<aspc::Literal> & literals, const std::vector<aspc::ArithmeticRelation>& inequalities_, const std::vector<std::string> & variables, std::string function): aggregateVariables(variables), aggregateFunction(string2AggregateFunction[function]){ 
-    std::cout <<"CREATED AGGREGATE WITH AGGREGARTE FUNCTION "<<function<<"\n";
     for(const aspc::Literal& l : literals){
         aggregateLiterals.push_back(aspc::Literal(l));
     }
