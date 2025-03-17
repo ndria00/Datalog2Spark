@@ -336,9 +336,9 @@ void SparkJobsCompiler::compileSCC(std::vector<int>& scc, int compIdx){
             outfile << ind << predName << " = " << predName;
             for(unsigned  i = 0; i < declaredDeltas.size(); ++i){
                 std::string deltaName = declaredDeltas[i];
-                outfile << ".union(" << deltaName <<").dropDuplicates()";
+                outfile << ".union(" << deltaName <<")";
             }
-            outfile << ";\n";
+            outfile << ".dropDuplicates();\n";
             declaredDeltas.clear();
         }
     }
@@ -803,7 +803,7 @@ void SparkJobsCompiler::compileRule(unsigned id, bool declareDelta){
 }
 
 void SparkJobsCompiler::compileFilterConstantsAndPojectSameVariables(Relation* rel, const aspc::Literal* lit){
-    std::string filteredRelName = rel->name + "f";
+    std::string filteredRelName = rel->name;
     //no duplicated variables
     if(lit->getVariables().size() == lit->getTerms().size()){
         for(unsigned varIdx = 0; varIdx < lit->getTerms().size(); ++varIdx){
@@ -814,7 +814,7 @@ void SparkJobsCompiler::compileFilterConstantsAndPojectSameVariables(Relation* r
         //a(X, Y, X, 2)
         std::unordered_set litVars = lit->getVariables();
         std::vector<std::pair<std::string, int>> toSelectVariableAndTerm;
-        std::vector<std::pair<std::string, std::string>> toFilterTermAndConstant;
+        std::vector<std::pair<int, std::string>> toFilterTermAndConstant;
         int termIdx = 0;
         bool doSelect =  false;
         for(unsigned varIdx = 0; varIdx < lit->getTerms().size(); ++varIdx){
@@ -830,7 +830,7 @@ void SparkJobsCompiler::compileFilterConstantsAndPojectSameVariables(Relation* r
                 }
             }else{
                 rel->variableToTerm.emplace(std::make_pair(lit->getTermAt(varIdx), termIdx));
-                toFilterTermAndConstant.push_back(std::make_pair("term" + std::to_string(varIdx), lit->getTermAt(varIdx)));
+                toFilterTermAndConstant.push_back(std::make_pair(varIdx, lit->getTermAt(varIdx)));
                 toSelectVariableAndTerm.push_back(std::make_pair("term" + std::to_string(varIdx), termIdx));
                 termIdx++;
             }
@@ -838,13 +838,17 @@ void SparkJobsCompiler::compileFilterConstantsAndPojectSameVariables(Relation* r
 
         //filtering constants
         if(toFilterTermAndConstant.size() > 0){
+            filteredRelName += "f";
+            for(unsigned constantIdx = 0; constantIdx < toFilterTermAndConstant.size(); ++constantIdx){
+                filteredRelName = filteredRelName + "_" + toFilterTermAndConstant[constantIdx].second;
+            }
             outfile << ind << "Dataset<Row> " << filteredRelName << " = " << rel->name << ".filter(";
             rel->name = filteredRelName;
             for(unsigned constantIdx = 0; constantIdx < toFilterTermAndConstant.size(); ++constantIdx){
                 if(isInteger(toFilterTermAndConstant[constantIdx].second))
-                    outfile << "col(\"" << toFilterTermAndConstant[constantIdx].first<< "\").equalTo(" << toFilterTermAndConstant[constantIdx].second << ")" << separatorIfNotLast(constantIdx, toFilterTermAndConstant.size() -1, ".and(");
+                    outfile << "col(\"term" << toFilterTermAndConstant[constantIdx].first<< "\").equalTo(" << toFilterTermAndConstant[constantIdx].second << ")" << separatorIfNotLast(constantIdx, toFilterTermAndConstant.size() -1, ".and(");
                 else 
-                    outfile << "col(\"" << toFilterTermAndConstant[constantIdx].first<< "\").equalTo(\"" << toFilterTermAndConstant[constantIdx].second << "\")" << separatorIfNotLast(constantIdx, toFilterTermAndConstant.size() -1, ".and(");                
+                    outfile << "col(\"term" << toFilterTermAndConstant[constantIdx].first<< "\").equalTo(\"" << toFilterTermAndConstant[constantIdx].second << "\")" << separatorIfNotLast(constantIdx, toFilterTermAndConstant.size() -1, ".and(");                
                 if(constantIdx > 0)
                     outfile <<")";
             }
@@ -852,6 +856,10 @@ void SparkJobsCompiler::compileFilterConstantsAndPojectSameVariables(Relation* r
         }
         //selecting terms
         if(doSelect){
+            filteredRelName += "proj";
+            for(unsigned variableTermIdx = 0; variableTermIdx < toSelectVariableAndTerm.size(); ++variableTermIdx){
+               filteredRelName = filteredRelName + "_" + std::to_string(toSelectVariableAndTerm[variableTermIdx].second);
+            }
             outfile << ind << filteredRelName << " = " << rel->name << ".select(";
             rel->name = filteredRelName;
             for(unsigned variableTermIdx = 0; variableTermIdx < toSelectVariableAndTerm.size(); ++variableTermIdx){
@@ -1045,15 +1053,19 @@ std::unordered_map<std::string, std::string> SparkJobsCompiler::printJoinBetween
             joiningVars.push_back(varNameAndTerm.first);
         }
     }
-
+    std::string rightRelationAlias = rightRelation->name;
+    if(leftRelation->name == rightRelation->name)
+        rightRelationAlias += "_";
     if(!cartesian){
         //inner join
         outfile << ind << "Dataset<Row> " << newRelationName << " = " << leftRelation->name << ".alias(\"" << leftRelation->name << "\").join(";
-        outfile << rightRelation->name << ".alias(\"" << rightRelation->name << "\"), ";
+        outfile << rightRelation->name << ".alias(\"" << rightRelationAlias << "\"), ";
         //join condition
         for(int joiningVarIdx = 0; joiningVarIdx < joiningVars.size(); ++joiningVarIdx){
             std::string joiningVar = joiningVars[joiningVarIdx];
-            outfile << "col(\"" << leftRelation->name << ".term" << leftRelation->variableToTerm[joiningVar] << "\").equalTo(col(\"" << rightRelation->name << ".term" << rightRelation->variableToTerm[joiningVar] << "\"))" << separatorIfNotLast(joiningVarIdx, joiningVars.size() -1, ".and(");
+            outfile << "col(\"" << leftRelation->name << ".term" << leftRelation->variableToTerm[joiningVar] << "\").equalTo(col(\"" << rightRelationAlias << ".term" << rightRelation->variableToTerm[joiningVar] << "\"))" << separatorIfNotLast(joiningVarIdx, joiningVars.size() -1, ".and(");
+        }
+        for(int joiningVarIdx = 0; joiningVarIdx < joiningVars.size(); ++joiningVarIdx){
             //close current and (no and if joinin var is just one)
             if(joiningVarIdx > 0)
                 outfile << ")";
@@ -1066,7 +1078,7 @@ std::unordered_map<std::string, std::string> SparkJobsCompiler::printJoinBetween
         //cross join
         //TODO if 0 varaibles are selected from right relation, this cartesian can be translated into a .size() > 0 over right relation
         outfile << ind << "Dataset<Row> " << newRelationName << " = " <<leftRelation->name << ".alias(\"" << leftRelation->name << "\").crossJoin(";
-        outfile << rightRelation->name << ".alias(\"" << rightRelation->name << "\"))";
+        outfile << rightRelation->name << ".alias(\"" << rightRelationAlias << "\"))";
     }
     
 
@@ -1095,17 +1107,23 @@ std::unordered_map<std::string, std::string> SparkJobsCompiler::printJoinBetween
         //each term of left and right relation is taken and has as name termn
         //with n the position it occupies in the new relation
         for(unsigned i = 0; i < 2; ++i){
+            std::string relationAlias;
             Relation* currentRelation;
-            if(i == 0) currentRelation = leftRelation;
-            else currentRelation = rightRelation;
-
+            if(i == 0){
+                currentRelation = leftRelation;
+                relationAlias = leftRelation->name;
+            }
+            else{
+                currentRelation = rightRelation;
+                relationAlias = rightRelationAlias;
+            }
             for(auto varNameAndTerm : currentRelation->variableToTerm){
                 //take first occurence of each toKeep variable
                 if(toKeepVars.count(varNameAndTerm.first)){
                     toKeepVars.erase(varNameAndTerm.first);
                     std::string oldTerm = "term" + std::to_string(varNameAndTerm.second);
                     std::string newTerm = "term" + std::to_string(newTermIdx);
-                    outfile <<"col(\"" << currentRelation->name<< "." << oldTerm << "\").alias(\"" << newTerm << "\")" << separatorIfNotLast(toKeepVars.size(), 0, ", ");
+                    outfile <<"col(\"" << relationAlias<< "." << oldTerm << "\").alias(\"" << newTerm << "\")" << separatorIfNotLast(toKeepVars.size(), 0, ", ");
                     toKeepVarsToNewCols.emplace(std::make_pair(oldTerm, newTerm));
                     newRelationTerms.emplace(std::make_pair(varNameAndTerm.first, newTermIdx));
                     newTermIdx++;
