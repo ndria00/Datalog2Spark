@@ -417,6 +417,15 @@ void SparkJobsCompiler::compileRule(unsigned id, bool declareDelta){
             loadedPredicates.insert(lit->getPredicateName());
         }
     }
+    if(rule.containsAggregate()){
+        for(const aspc::Literal& lit : rule.getArithmeticRelationsWithAggregate().at(0).getAggregate().getAggregateLiterals()){
+            //if predicate is not an AggSet
+            if(lit.getPredicateName().find(AggregateRewriter::AGG_SET_PREFIX) != 0 && !loadedPredicates.count(lit.getPredicateName())){
+                printPredicateLoading(&lit);
+                loadedPredicates.insert(lit.getPredicateName());
+            }
+        }
+    }
     std::vector<unsigned> ruleOrder = ruleOrdering.at(id);
     for(unsigned i = 0; i < ruleOrder.size(); ++i){
         std::string newRelationName;
@@ -459,7 +468,7 @@ void SparkJobsCompiler::compileRule(unsigned id, bool declareDelta){
                 std::string aggrSetAggVariable =  aggrRel->getAggregate().getAggregateVariables().at(0);
                 int aggrSetAggTermCol = rightRelation->variableToTerm.at(aggrSetAggVariable);
                 for(unsigned groupVarIdx = 0; groupVarIdx < groupVariables.size(); ++groupVarIdx){
-                    outfile << "co(\"" << groupVariables[groupVarIdx].second << "\")" << separatorIfNotLast(groupVarIdx, groupVariables.size()-1, ", ");
+                    outfile << "col(\"" << groupVariables[groupVarIdx].second << "\")" << separatorIfNotLast(groupVarIdx, groupVariables.size()-1, ", ");
                 }
                 //close groupBy
                 outfile << ").agg(";
