@@ -32,7 +32,6 @@ std::unordered_map<SparkJobsCompiler::JoinType, std::string> SparkJobsCompiler::
     {SparkJobsCompiler::JoinType::LEFT, "left"},
 };
 
-std::string SparkJobsCompiler::AGGREGATE_LIT_RESULT = "aggrRes";
 
 SparkJobsCompiler::SparkJobsCompiler(const aspc::Program& program): program(program), ind(Indentation(0)){
 
@@ -974,8 +973,6 @@ void SparkJobsCompiler::printPredicateLoading(const aspc::Literal* lit){
         outfile << ind << "Dataset<Row> " << predName << ";\n";
         //do not load predicates that are result of rewriting (there is no fact for such predicates)
         if(predName.rfind(AggregateRewriter::AGG_SET_PREFIX, 0) == std::string::npos && predName.rfind(AggregateRewriter::BODY_PREFIX, 0) == std::string::npos){
-            //print loading for input-output predicates or empty dataset for rewriting preds
-            if(!nonInterfacePredicates.count(lit->getPredicateName())){
                 outfile << ind++ << "if(Main.instanceFileExists(instancePath + \"" << predName << ".csv\", session))\n";
                 outfile << ind << predName << " = session.read().format(\"csv\").option(\"header\", false).schema(\"";
                 for(int i = 0; i < predArity; ++i){
@@ -990,9 +987,6 @@ void SparkJobsCompiler::printPredicateLoading(const aspc::Literal* lit){
                 outfile << ind++ << "else\n";
                 outfile  << ind << predName << " = " << compileEmptyDatasetWithLitTerms(lit) << ";\n";
                 --ind;
-            }else{
-                outfile  << ind << predName << " = " << compileEmptyDatasetWithLitTerms(lit) << ";\n";
-            }
         }else{
             outfile << ind << predName << " = " << compileEmptyDatasetWithLitTerms(lit) << ";\n";
         }

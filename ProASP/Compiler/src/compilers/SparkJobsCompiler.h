@@ -30,7 +30,6 @@ class SparkJobsCompiler{
     aspc::Program program;
     std::unordered_map<unsigned, std::vector<unsigned>> ruleOrdering;
     std::unordered_set<std::string> loadedPredicates;
-    std::unordered_set<std::string> nonInterfacePredicates;
     std::unordered_map<int, std::unordered_set<std::string>> unpersistDatasetsAfterComponent;
     std::unordered_set<std::string> unpersistedPredicates;
     std::unordered_set<std::string> zeroArityPredicates;
@@ -43,7 +42,6 @@ class SparkJobsCompiler{
 
     static std::unordered_map<std::string, std::string> aggregateToFunction;
     static std::unordered_map<std::string, std::string> aggregateToDefaultValue;
-    static std::string AGGREGATE_LIT_RESULT;
     static std::unordered_map<JoinType, std::string> JoinTypeToSparkJoin;
     public:
         SparkJobsCompiler(const aspc::Program&);
