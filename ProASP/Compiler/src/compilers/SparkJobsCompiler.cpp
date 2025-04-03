@@ -346,7 +346,7 @@ void SparkJobsCompiler::compileSCC(std::vector<int>& scc, int compIdx){
             unpersistedPredicates.insert(pred);
             //predicates that are edb do not need to be written
             if(headPredicates.count(pred)){
-                printPredicateSaving(pred);
+                printPredicateSaving(pred, true);
             }
         }
     }
@@ -991,7 +991,7 @@ void SparkJobsCompiler::printPredicateLoading(const aspc::Literal* lit){
                     else
                         outfile << "term" << i << " " << termType;
                 }
-                outfile << "\").option(\"sep\", \";\").load(instancePath + \"" << predName << ".csv\");\n";
+                outfile << "\").option(\"sep\", \";\").load(instancePath + \"" << predName << ".csv\").dropDuplicates();\n";
                 --ind;
                 outfile << ind++ << "else\n";
                 outfile  << ind << predName << " = " << compileEmptyDatasetWithLitTerms(lit) << ";\n";
@@ -1004,20 +1004,24 @@ void SparkJobsCompiler::printPredicateLoading(const aspc::Literal* lit){
     }
 }
 
-void SparkJobsCompiler::printPredicateSaving(std::string pred){
+void SparkJobsCompiler::printPredicateSaving(std::string pred, bool write){
     if(zeroArityPredicates.count(pred)){
-        outfile << ind++ << "if(exists_" << pred << ")\n";
-        outfile << ind << "emptyDF.write().mode(\"overwrite\").option(\"header\", \"false\").option(\"delimiter\", \";\").csv(outputPath + \"/" << pred << "\");\n";
-        --ind;
+        if(write){
+            outfile << ind++ << "if(exists_" << pred << ")\n";
+            outfile << ind << "emptyDF.write().mode(\"overwrite\").option(\"header\", \"false\").option(\"delimiter\", \";\").csv(outputPath + \"/" << pred << "\");\n";
+            --ind;
+        }
     }else{
         outfile << ind << pred << ".count();\n";
-        outfile << ind << pred << ".write().mode(\"overwrite\").option(\"header\", \"false\").option(\"delimiter\", \";\").csv(outputPath + \"/" << pred << "\");\n";
+        if(write)
+            outfile << ind << pred << ".write().mode(\"overwrite\").option(\"header\", \"false\").option(\"delimiter\", \";\").csv(outputPath + \"/" << pred << "\");\n";
         outfile << ind << pred << ".unpersist();\n";
     }
 }
 void SparkJobsCompiler::printSparkConfiguration(){
     // outfile << ind << "SparkSession session = new SparkSession.Builder().appName(\"test\").master(\"spark://eracle:7077\").getOrCreate();\n";
-    outfile << ind << "SparkSession session = new SparkSession.Builder().appName(\"test\").master(\"local\").getOrCreate();\n";
+    // outfile << ind << "SparkSession session = new SparkSession.Builder().appName(\"test\").master(\"local[16]\").getOrCreate();\n";
+    outfile << ind << "SparkSession session = new SparkSession.Builder().appName(\"test\").getOrCreate();\n";
     outfile << ind << "session.sparkContext().setLogLevel(\"error\");\n";
 }
 std::unordered_set<std::string> SparkJobsCompiler::computeExternalVariablesForAggregate(unsigned ruleId, unsigned formulaId){
