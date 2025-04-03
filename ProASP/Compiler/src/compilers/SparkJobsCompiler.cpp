@@ -338,6 +338,11 @@ void SparkJobsCompiler::compileSCC(std::vector<int>& scc, int compIdx){
                 outfile << ".union(" << deltaName <<")";
             }
             outfile << ".dropDuplicates();\n";
+            outfile << ind << predName << ".count();\n";
+            //unpersist deltas
+            for(unsigned  i = 0; i < declaredDeltas.size(); ++i){
+                outfile << ind << declaredDeltas[i] <<".unpersist();\n";
+            }
             declaredDeltas.clear();
         }
     }
@@ -427,6 +432,7 @@ void SparkJobsCompiler::compileRule(unsigned id, bool declareDelta){
         }
     }
     std::vector<unsigned> ruleOrder = ruleOrdering.at(id);
+    std::vector<std::string> intermediateDatasets;
     for(unsigned i = 0; i < ruleOrder.size(); ++i){
         std::string newRelationName;
         const aspc::Formula* formula = body[ruleOrder[i]];
@@ -464,6 +470,7 @@ void SparkJobsCompiler::compileRule(unsigned id, bool declareDelta){
                     }
                 }
                 outfile << ind << "Dataset<Row> " << rightRelation->name << " = " << aggrLit.getPredicateName() << ".groupBy(";
+                intermediateDatasets.push_back(rightRelation->name);
                 //first var of the symbolic set of the aggregate            
                 std::string aggrSetAggVariable =  aggrRel->getAggregate().getAggregateVariables().at(0);
                 int aggrSetAggTermCol = rightRelation->variableToTerm.at(aggrSetAggVariable);
@@ -570,6 +577,7 @@ void SparkJobsCompiler::compileRule(unsigned id, bool declareDelta){
                 if(leftRelation != nullptr){
                     if(aggregateToDefaultValue.count(aggrName)){
                         std::unordered_map<std::string, std::string> oldTermsToNewTerms = printJoinBetweenRelations(leftRelation, rightRelation, newRelationName, JoinType::LEFT, id, headVars, toKeepVars, nextBodyVars);
+                        intermediateDatasets.push_back(newRelationName);
                         std::unordered_map<std::string, std::string> oldRemapping(variableRemapping.begin(), variableRemapping.end());
                         variableRemapping.clear();
                         //update remapping so that the value of the aggregation column can be calculated for tuples in left join that are not in inner join
@@ -702,16 +710,20 @@ void SparkJobsCompiler::compileRule(unsigned id, bool declareDelta){
                     outfile << ind++ << "if(" << zeroArityIfCondition << "){\n";
                 }
             }
-            
+
             if(leftRelation == nullptr){
                 leftRelation = new Relation();
                 leftRelation->name = lit->getPredicateName();
                 compileFilterConstantsAndPojectSameVariables(leftRelation, lit);
+                if(leftRelation->name != lit->getPredicateName())
+                    intermediateDatasets.push_back(leftRelation->name);
             }else{
                 assert(leftRelation != nullptr);
                 rightRelation = new Relation();
                 rightRelation->name = lit->getPredicateName();
                 compileFilterConstantsAndPojectSameVariables(rightRelation, lit);
+                if(rightRelation->name != lit->getPredicateName())
+                    intermediateDatasets.push_back(rightRelation->name);
             }
             //compile join between left and right relation
             //then right relation becomes left relation
@@ -735,6 +747,7 @@ void SparkJobsCompiler::compileRule(unsigned id, bool declareDelta){
                 leftRelation = rightRelation;
                 rightRelation = nullptr;
                 leftRelation->name =  newRelationName;
+                intermediateDatasets.push_back(newRelationName);
             }
         }
         //rule is firing
@@ -760,6 +773,7 @@ void SparkJobsCompiler::compileRule(unsigned id, bool declareDelta){
                         }
                     }
                     outfile << ")).dropDuplicates();\n";
+                    outfile << ind << headLit.getPredicateName() << ".count();\n";
                 }else{
                     //full zero arity body  -> head is true if the printed zero-arity if is satisfied
                     if(!printedZeroArityIf){
@@ -791,6 +805,7 @@ void SparkJobsCompiler::compileRule(unsigned id, bool declareDelta){
                     }
                     outfile << ");\n";
                     declaredDeltas.push_back(newRelationName);
+                    outfile << ind << deltaName << ".count();\n";
                 }else{
                     if(!printedZeroArityIf)
                         outfile << ind << "exists_" << headLit.getPredicateName() << " = true;\n";
@@ -807,6 +822,9 @@ void SparkJobsCompiler::compileRule(unsigned id, bool declareDelta){
     
     if(foundZeroArityIf){
         outfile << --ind << "}\n";
+    }
+    for(std::string intermediate : intermediateDatasets){
+        outfile << ind << intermediate << ".unpersist();\n";
     }
 }
 
@@ -1012,7 +1030,6 @@ void SparkJobsCompiler::printPredicateSaving(std::string pred, bool write){
             --ind;
         }
     }else{
-        outfile << ind << pred << ".count();\n";
         if(write)
             outfile << ind << pred << ".write().mode(\"overwrite\").option(\"header\", \"false\").option(\"delimiter\", \";\").csv(outputPath + \"/" << pred << "\");\n";
         outfile << ind << pred << ".unpersist();\n";

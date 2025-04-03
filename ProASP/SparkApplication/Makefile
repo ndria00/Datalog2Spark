@@ -14,7 +14,7 @@ all:
 # Run target - executes the jar file with provided arguments
 run:
 	@echo "Running with instance $(ARGS)"
-	java -jar $(BUILD_DIR)/SparkApplication-0.0.1-SNAPSHOT-jar-with-dependencies.jar $(ARGS)
+	spark-submit $(BUILD_DIR)/SparkApplication-0.0.1-SNAPSHOT-jar-with-dependencies.jar $(ARGS)
 
 # Clean target - removes build artifacts
 clean:
