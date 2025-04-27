@@ -62,6 +62,6 @@ class SparkJobsCompiler{
         void printPredicateSaving(std::string, bool);
         void printSparkConfiguration();
         std::unordered_set<std::string> computeExternalVariablesForAggregate(unsigned, unsigned);
-        std::unordered_map<std::string, std::string> printJoinBetweenRelations(Relation*, Relation*, std::string&, SparkJobsCompiler::JoinType, unsigned id, std::unordered_set<std::string>&, std::unordered_set<std::string>&, std::unordered_set<std::string>&);
+        std::string printJoinBetweenRelations(Relation*, Relation*, std::string&, SparkJobsCompiler::JoinType, unsigned id, std::unordered_set<std::string>&, std::unordered_set<std::string>&, std::unordered_set<std::string>&, std::string);
 };
 #endif /*SPARKJOBSCOMPILER_H*/

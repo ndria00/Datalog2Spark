@@ -93,7 +93,7 @@ void AggregateRewriter::rewriteRuleWithAggregate(const aspc::Rule& rule){
     //if aggregate in rule has only one literal in the conjunction of the aggregate and there are no external vars
     //do not create rule for generating aggSet, but use directly that literal as AggSet
     bool aggLitCanBeAggSet = false;
-    if(relWithAgg.getAggregate().getAggregateLiterals().size() == 1){
+    if(relWithAgg.getAggregate().getAggregateLiterals().size() == 1 && relWithAgg.getAggregate().getAggregateInequalities().size() == 0){
         //the above condition is satisfied if all terms of aggSetRuleHead are inside the single literal in conj
         std::unordered_set<std::string> conjTermsSet;
         for(std::string t : relWithAgg.getAggregate().getAggregateLiterals().at(0).getTerms())
@@ -107,8 +107,11 @@ void AggregateRewriter::rewriteRuleWithAggregate(const aspc::Rule& rule){
 
     }
     if(!aggLitCanBeAggSet){
+        std::vector<aspc::ArithmeticRelation> aggSetRuleArithRel;
+        for(const aspc::ArithmeticRelation& rel : rule.getArithmeticRelations()) aggSetRuleArithRel.push_back(rel);
+        for(const aspc::ArithmeticRelation& rel : rule.getArithmeticRelationsWithAggregate().at(0).getAggregate().getAggregateInequalities()) aggSetRuleArithRel.push_back(rel);
         //rule for generating aggSet
-        aspc::Rule aggSetRule({aggSetRuleHead}, aggSetBody, rule.getArithmeticRelations(),{}, false);
+        aspc::Rule aggSetRule({aggSetRuleHead}, aggSetBody, aggSetRuleArithRel,{}, false);
         std::cout <<"Created aggSet rule with id: " << aggSetRule.getRuleId()<< "\n";
         rewrittenProgram.addRule(aggSetRule);
     }
@@ -133,7 +136,7 @@ void AggregateRewriter::rewriteRuleWithAggregate(const aspc::Rule& rule){
         if(rule.getBodyLiterals().size() == 1)
             bodyLits.push_back(rule.getBodyLiterals().at(0));
     }
-    aspc::Rule ruleWithAggSet(rule.getHead(), bodyLits, rule.getArithmeticRelations(), {rewrittenAggregate}, false);
+    aspc::Rule ruleWithAggSet(rule.getHead(), bodyLits, {}, {rewrittenAggregate}, false);
     std::cout <<"Created head rule with id: " << ruleWithAggSet.getRuleId()<< "\n";
     rewrittenProgram.addRule(ruleWithAggSet);
     

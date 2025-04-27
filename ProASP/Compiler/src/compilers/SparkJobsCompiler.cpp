@@ -192,7 +192,7 @@ void SparkJobsCompiler::inferTypes(int ruleId){
                 //check that guard terms are numeric
                 std::string guardTerm1 = aggrRel->getGuard().getTerm1();
                 std::string guardTerm2 = aggrRel->getGuard().getTerm2();
-                if(guardTerm1 != "" && isVariable(guardTerm1)){
+                if(guardTerm1 != ""){
                     if(isVariable(guardTerm1)){
                         if(!variableToType.count(guardTerm1))
                             variableToType.emplace(std::make_pair(guardTerm1, aspc::TypeDirective::NUMERIC_TYPE));
@@ -247,7 +247,7 @@ void SparkJobsCompiler::inferTypes(int ruleId){
                     std::vector<std::string> leftTerms = rel->getLeft().getAllTerms();
                     for(int j = 0; j < leftTerms.size(); ++j){
                         if(leftTerms[j] != "" && isVariable(leftTerms[j])){
-                            if(variableToType.at(leftTerms[j]) != aspc::TypeDirective::NUMERIC_TYPE)
+                            if(!variableToType.count(leftTerms[j]) && variableToType.at(leftTerms[j]) != aspc::TypeDirective::NUMERIC_TYPE)
                                 abortDueToTypeMismatch("Arithmetic operation between non-numeric variables is not allowed (" + leftTerms[j] + " is not numeric) ");
                             variableToType.emplace(std::make_pair(leftTerms[j], aspc::TypeDirective::NUMERIC_TYPE));
                         }
@@ -255,7 +255,7 @@ void SparkJobsCompiler::inferTypes(int ruleId){
                     std::vector<std::string> rightTerms = rel->getRight().getAllTerms();
                     for(int j = 0; j < rightTerms.size(); ++j){
                         if(rightTerms[j] != "" && isVariable(rightTerms[j])){
-                            if(variableToType.at(rightTerms[j]) != aspc::TypeDirective::NUMERIC_TYPE)
+                            if(!variableToType.count(rightTerms[j]) && variableToType.at(rightTerms[j]) != aspc::TypeDirective::NUMERIC_TYPE)
                                 abortDueToTypeMismatch("Arithmetic operation between non-numeric variables is not allowed (" + rightTerms[j] + " is not numeric) ");
                             variableToType.emplace(std::make_pair(rightTerms[j], aspc::TypeDirective::NUMERIC_TYPE));
                         }
@@ -576,32 +576,38 @@ void SparkJobsCompiler::compileRule(unsigned id, bool declareDelta){
                 headLit.addVariablesToSet(toKeepVars);
                 if(leftRelation != nullptr){
                     if(aggregateToDefaultValue.count(aggrName)){
-                        std::unordered_map<std::string, std::string> oldTermsToNewTerms = printJoinBetweenRelations(leftRelation, rightRelation, newRelationName, JoinType::LEFT, id, headVars, toKeepVars, nextBodyVars);
+                        std::string newAggregationColName = printJoinBetweenRelations(leftRelation, rightRelation, newRelationName, JoinType::LEFT, id, headVars, toKeepVars, nextBodyVars, aggregationResultColName);
                         intermediateDatasets.push_back(newRelationName);
                         std::unordered_map<std::string, std::string> oldRemapping(variableRemapping.begin(), variableRemapping.end());
                         variableRemapping.clear();
+                        //std::string newAggregationColName = ""; // = oldTermsToNewTerms[aggregationResultColName];
                         //update remapping so that the value of the aggregation column can be calculated for tuples in left join that are not in inner join
                         // c->1 and term1->term2
-                        for(auto pair : oldRemapping){
-                            variableRemapping[pair.first] = oldTermsToNewTerms[pair.second];
+                        for(auto pair : rightRelation->variableToTerm){
+                            variableRemapping[pair.first] = "term" + std::to_string(pair.second); //oldTermsToNewTerms[pair.second];
                         }
-                        std::string newAggregationColName = oldTermsToNewTerms[aggregationResultColName];
+                        variableRemapping[newAggregationColName] = newAggregationColName;
                         if(aggrRel->isBoundedValueAssignment(boundVars)){
                             outfile << ind << newRelationName << " = " << newRelationName << ".withColumn(\"" << variableRemapping[boundedVar] << "\", coalesce(col(\"" << newAggregationColName << "\"),";
                             variableRemapping.erase(boundedVar);
                             outfile <<" expr(\"" << aggrRel->getAssignmentAsStringForRelation(variableRemapping, newAggregationColName, true, SparkJobsCompiler::aggregateToDefaultValue[aggrName])<< "\")));\n";
                         }else{
-                            outfile << ind << newRelationName << " = " << newRelationName << ".where(\"" << SparkJobsCompiler::aggregateToDefaultValue[aggrName] << " " << aspc::ArithmeticRelation::comparisonType2String[aggrRel->getComparisonType()] << " " << aggrRel->getGuard().getStringRepWithRemapping(variableRemapping) << "\");\n";
+                            //replace nulls with aggr default value
+                            outfile << ind << newRelationName << " = " << newRelationName << ".withColumn(\"" << newAggregationColName << "\", coalesce(col(\"" << newAggregationColName << "\"), lit(" << SparkJobsCompiler::aggregateToDefaultValue[aggrName]<<")));\n";
+                            //do a filter using aggr col, not the constant
+                            outfile << ind << newRelationName << " = " << newRelationName << ".where(\"" << newAggregationColName << " " << aspc::ArithmeticRelation::comparisonType2String[aggrRel->getComparisonType()] << " " << aggrRel->getGuard().getStringRepWithRemapping(variableRemapping) << "\");\n";
                         }
                     }else{
-                        std::unordered_map<std::string, std::string> oldTermsToNewTerms = printJoinBetweenRelations(leftRelation, rightRelation, newRelationName, JoinType::INNER, id, headVars, toKeepVars, nextBodyVars);       
+                        //std::string newAggregationColName;// = oldTermsToNewTerms[aggregationResultColName];
+                        std::string newAggregationColName = printJoinBetweenRelations(leftRelation, rightRelation, newRelationName, JoinType::INNER, id, headVars, toKeepVars, nextBodyVars, aggregationResultColName);
                         std::unordered_map<std::string, std::string> oldRemapping(variableRemapping.begin(), variableRemapping.end());
                         variableRemapping.clear();
-                        for(auto pair : oldRemapping){
-                            variableRemapping[pair.first] = oldTermsToNewTerms[pair.second];
+                        for(auto pair : rightRelation->variableToTerm){
+                            variableRemapping[pair.first] = "term" + std::to_string(pair.second);//oldTermsToNewTerms[pair.second];
                         }
-                        std::string newAggregationColName = oldTermsToNewTerms[aggregationResultColName];
-                        outfile << ind << newRelationName << " = " << newRelationName << ".where(\"" << newAggregationColName << " " << aspc::ArithmeticRelation::comparisonType2String[aggrRel->getComparisonType()] << " " << aggrRel->getGuard().getStringRepWithRemapping(variableRemapping) << "\");\n";
+                        variableRemapping[newAggregationColName] = newAggregationColName;
+                        if(!aggrRel->isBoundedValueAssignment(boundVars))
+                            outfile << ind << newRelationName << " = " << newRelationName << ".where(\"" << newAggregationColName << " " << aspc::ArithmeticRelation::comparisonType2String[aggrRel->getComparisonType()] << " " << aggrRel->getGuard().getStringRepWithRemapping(variableRemapping) << "\");\n";
                     }
                     
                     //switch relations
@@ -660,7 +666,13 @@ void SparkJobsCompiler::compileRule(unsigned id, bool declareDelta){
                         toKeepVar = true;
                     std::unordered_set<std::string> toKeepVars; 
                     for(unsigned j = i+1; j < ruleOrder.size(); ++j){
-                        body[ruleOrder[j]]->addVariablesToSet(toKeepVars);
+                        if(!body[ruleOrder[j]]->isLiteral() && !body[ruleOrder[j]]->containsAggregate()){
+                            const aspc::ArithmeticRelation* rel1 = (const aspc::ArithmeticRelation*) body[ruleOrder[j]];
+                            rel1->addOccurringVariables(toKeepVars);
+                        }
+                        else{
+                            body[ruleOrder[j]]->addVariablesToSet(toKeepVars);
+                        }
                     }
                     if(toKeepVars.count(boundedVar)){
                         toKeepVar = true;
@@ -735,13 +747,21 @@ void SparkJobsCompiler::compileRule(unsigned id, bool declareDelta){
                 headLit.addVariablesToSet(toKeepVars);
                 //variables needed by next joins have to be kept too
                 for(unsigned j = i+1; j < ruleOrder.size(); ++j){
-                    body[ruleOrder[j]]->addVariablesToSet(toKeepVars);
-                    body[ruleOrder[j]]->addVariablesToSet(nextBodyVars);
+                    if(!body[ruleOrder[j]]->isLiteral() && !body[ruleOrder[j]]->containsAggregate()){
+                        const aspc::ArithmeticRelation* rel1 = (const aspc::ArithmeticRelation*) body[ruleOrder[j]];
+                        rel1->addOccurringVariables(toKeepVars);
+                        rel1->addOccurringVariables(nextBodyVars);
+                    }
+                    else{
+                        body[ruleOrder[j]]->addVariablesToSet(toKeepVars);
+                        body[ruleOrder[j]]->addVariablesToSet(nextBodyVars);
+                    }
                 }
+                std::cout << "Printing join\n";
                 if(lit->isNegated())
-                    printJoinBetweenRelations(leftRelation, rightRelation, newRelationName, JoinType::ANTI, id, headVars, toKeepVars, nextBodyVars);
+                    printJoinBetweenRelations(leftRelation, rightRelation, newRelationName, JoinType::ANTI, id, headVars, toKeepVars, nextBodyVars, "");
                 else
-                    printJoinBetweenRelations(leftRelation, rightRelation, newRelationName, JoinType::INNER, id, headVars, toKeepVars, nextBodyVars);
+                    printJoinBetweenRelations(leftRelation, rightRelation, newRelationName, JoinType::INNER, id, headVars, toKeepVars, nextBodyVars, "");
                 //switch relations
                 delete leftRelation;
                 leftRelation = rightRelation;
@@ -1023,15 +1043,19 @@ void SparkJobsCompiler::printPredicateLoading(const aspc::Literal* lit){
 }
 
 void SparkJobsCompiler::printPredicateSaving(std::string pred, bool write){
-    if(zeroArityPredicates.count(pred)){
-        if(write){
-            outfile << ind++ << "if(exists_" << pred << ")\n";
-            outfile << ind << "emptyDF.write().mode(\"overwrite\").option(\"header\", \"false\").option(\"delimiter\", \";\").csv(outputPath + \"/" << pred << "\");\n";
-            --ind;
+    if(pred.rfind(AggregateRewriter::AGG_SET_PREFIX, 0) == std::string::npos && pred.rfind(AggregateRewriter::BODY_PREFIX, 0) == std::string::npos){
+        if(zeroArityPredicates.count(pred)){
+            if(write){
+                outfile << ind++ << "if(exists_" << pred << ")\n";
+                outfile << ind << "emptyDF.write().mode(\"overwrite\").option(\"header\", \"false\").option(\"delimiter\", \";\").csv(outputPath + \"/" << pred << "\");\n";
+                --ind;
+            }
+        }else{
+            if(write)
+                outfile << ind << pred << ".write().mode(\"overwrite\").option(\"header\", \"false\").option(\"delimiter\", \";\").csv(outputPath + \"/" << pred << "\");\n";
+            outfile << ind << pred << ".unpersist();\n";
         }
     }else{
-        if(write)
-            outfile << ind << pred << ".write().mode(\"overwrite\").option(\"header\", \"false\").option(\"delimiter\", \";\").csv(outputPath + \"/" << pred << "\");\n";
         outfile << ind << pred << ".unpersist();\n";
     }
 }
@@ -1058,8 +1082,9 @@ std::unordered_set<std::string> SparkJobsCompiler::computeExternalVariablesForAg
     return externalVars;
 }
 
-std::unordered_map<std::string, std::string> SparkJobsCompiler::printJoinBetweenRelations(Relation* leftRelation, Relation* rightRelation, std::string& newRelationName, SparkJobsCompiler::JoinType joinType, unsigned id, std::unordered_set<std::string>& headVars, std::unordered_set<std::string>& toKeepVars, std::unordered_set<std::string>& nextBodyVars){
-    std::unordered_map<std::string, std::string> toKeepVarsToNewCols;
+std::string SparkJobsCompiler::printJoinBetweenRelations(Relation* leftRelation, Relation* rightRelation, std::string& newRelationName, SparkJobsCompiler::JoinType joinType, unsigned id, std::unordered_set<std::string>& headVars, std::unordered_set<std::string>& toKeepVars, std::unordered_set<std::string>& nextBodyVars, std::string trackTerm){
+    std::string newTrackedTerm;
+    //std::unordered_map<std::string, std::string> toKeepVarsToNewCols;
     //Give name to join (if there is rule id at the end of name trim it) - names are text_ruleId
     size_t pos = leftRelation->name.find_last_of("_");
     if(pos == std::string::npos){
@@ -1148,7 +1173,9 @@ std::unordered_map<std::string, std::string> SparkJobsCompiler::printJoinBetween
                     std::string oldTerm = "term" + std::to_string(varNameAndTerm.second);
                     std::string newTerm = "term" + std::to_string(newTermIdx);
                     outfile <<"col(\"" << relationAlias<< "." << oldTerm << "\").alias(\"" << newTerm << "\")" << separatorIfNotLast(toKeepVars.size(), 0, ", ");
-                    toKeepVarsToNewCols.emplace(std::make_pair(oldTerm, newTerm));
+                    //toKeepVarsToNewCols.emplace(std::make_pair(oldTerm, newTerm));
+                    if(oldTerm == trackTerm)
+                        newTrackedTerm = newTerm;
                     newRelationTerms.emplace(std::make_pair(varNameAndTerm.first, newTermIdx));
                     newTermIdx++;
                 }
@@ -1164,7 +1191,7 @@ std::unordered_map<std::string, std::string> SparkJobsCompiler::printJoinBetween
 
     //close join
     outfile <<";\n";
-    return toKeepVarsToNewCols;
+    return newTrackedTerm;
 }
 
 //set types defined in program as types in TypeManager and default types if not specified
