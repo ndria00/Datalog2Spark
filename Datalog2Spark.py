@@ -8,7 +8,7 @@ def get_current_folder():
     return os.path.basename(os.getcwd())
 
 def current_folder_is_project_folder():
-    if get_current_folder() == 'SparkCompilation':
+    if get_current_folder() == 'Datalog2Spark':
         return True
     return False
 
