@@ -9,6 +9,7 @@
 	</properties>
 
 	<build>
+	<finalName>Datalog2Spark</finalName>
     <plugins>
       <!-- any other plugins -->
       <plugin>

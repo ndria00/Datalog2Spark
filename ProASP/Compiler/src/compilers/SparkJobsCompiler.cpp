@@ -56,7 +56,7 @@ void SparkJobsCompiler::compile(){
 
 
 void SparkJobsCompiler::openMainFile(){
-    std::string filePath = "../SparkApplication/src/main/java/application/Main.java";
+    std::string filePath = "ProASP/SparkApplication/src/main/java/application/Main.java";
     outfile =  std::ofstream(filePath);
     ind = Indentation(0);
     if(!outfile.is_open()){
